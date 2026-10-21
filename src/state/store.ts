@@ -253,10 +253,15 @@ export function roomEverythingOff(id: RoomId): void {
   ls.forEach((l) => (l.on = false));
   const tv = _S.devices.find((d) => d.type === "tv" && d.room === id);
   if (tv) tv.on = false;
+  // Stop any music playing in this room too (otherwise "everything off" lies).
+  const zone = _S.media.zones.find((z) => z.id === id);
+  const stopZone = zone && zone.on && zone.available ? zone : undefined;
+  if (stopZone) stopZone.on = false;
   bump();
   const ids = ls.map((l) => l.ent);
   if (ids.length) void callService("light", "turn_off", {}, { entity_id: ids });
   if (tv) void callService("media_player", "turn_off", {}, { entity_id: tv.ent });
+  if (stopZone) void callService("media_player", "media_pause", {}, { entity_id: stopZone.ent });
   showToast(ROOMS.find((r) => r.id === id)!.name + " is off");
 }
 
@@ -268,7 +273,8 @@ export function runScene(id: string): void {
   bump();
   if (sc.kind === "scene") void callService("scene", "turn_on", {}, { entity_id: sc.id });
   else void callService("script", "turn_on", {}, { entity_id: sc.id });
-  showToast(sc.name + " is on");
+  // A scene is "set"; a script is "run" — "is on" reads wrong for a script.
+  showToast(sc.kind === "script" ? "Running " + sc.name : sc.name + " on");
 }
 
 // ---- media ----
@@ -308,7 +314,8 @@ export function setZoneVol(id: RoomId, v: number): void {
   const z = _S.media.zones.find((x) => x.id === id);
   if (!z) return;
   z.vol = v;
-  if (v > 0) z.on = z.on || z.available;
+  // Volume and playback are independent: changing the volume must NOT mark a
+  // paused speaker as "Playing".
   bump();
   void callService("media_player", "volume_set", { volume_level: v / 100 }, { entity_id: z.ent });
 }

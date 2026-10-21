@@ -1,7 +1,7 @@
 import type { JSX, ComponentChildren } from "preact";
 import { Icon } from "../Icon";
 import { Slider } from "../widgets";
-import { useStore } from "../../state/store";
+import { useStore, connectionStatus } from "../../state/store";
 import { getCatalog } from "../../ha/catalog";
 import {
   settingsUI,
@@ -150,14 +150,18 @@ const SEmpty = ({ icon, msg }: { icon: string; msg: string }): JSX.Element => (
 function Overview(): JSX.Element {
   const un = unusedList();
   const nSp = speakerItems().length;
+  const cs = connectionStatus.value;
+  const live = cs === "connected";
+  const csLabel = live ? "Connected" : cs === "connecting" ? "Connecting…" : cs === "reconnecting" ? "Reconnecting…" : "Disconnected";
+  const csSub = live ? "Reusing the panel's authenticated session" : cs === "disconnected" ? "Lost contact with Home Assistant" : "Waiting for Home Assistant…";
   return (
     <>
       <SHead t="Overview" sub="What the panel is connected to and what is set up." />
       <div class="s-body s-two">
         <div class="s-colstack">
           <SCard label="Home Assistant">
-            <div class="s-status"><i class="s-dot" /><b>Connected</b><span class="muted">Live</span></div>
-            <SRow icon="wifi" title="Connection" sub="Reusing the panel's authenticated session" mono />
+            <div class="s-status"><i class={"s-dot" + (live ? "" : " off")} /><b>{csLabel}</b><span class="muted">{live ? "Live" : "—"}</span></div>
+            <SRow icon="wifi" title="Connection" sub={csSub} mono />
             <SRow icon="grid" title="Entities" sub="Found in Home Assistant" right={<SVal>{getCatalog().length || "—"}</SVal>} />
             <SRow
               icon="sync"

@@ -32,15 +32,6 @@ function LightTile({ l }: { l: import("../../state/model").Light }): JSX.Element
   );
 }
 
-function EmptyCard({ label, msg }: { label: string; msg: string }): JSX.Element {
-  return (
-    <section class="card pad" style="display:flex;flex-direction:column;min-height:0">
-      <span class="lab">{label}</span>
-      <div class="bigmsg"><Icon n="alert" /><p>{msg}</p></div>
-    </section>
-  );
-}
-
 export function Rooms(): JSX.Element {
   const S = useStore();
   const r = ROOMS.find((x) => x.id === S.rroom) ?? ROOMS[0]!;
@@ -54,6 +45,9 @@ export function Rooms(): JSX.Element {
   const comfort = temp == null ? "" : temp < 18 ? "Cool" : temp > 22 ? "Warm" : "Comfortable";
   const lo = sn.tser.length ? Math.min.apply(null, sn.tser) : 0;
   const hi = sn.tser.length ? Math.max.apply(null, sn.tser) : 0;
+  const showTemp = sn.hasTemp && temp != null;
+  const showMotion = sn.hasMotion;
+  const sensorCount = (showTemp ? 1 : 0) + (showMotion ? 1 : 0);
   const anyOn = on > 0 || (tv ? tv.on : false);
   const ell = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
   const zTitle = z?.title || "Nothing playing";
@@ -61,7 +55,7 @@ export function Rooms(): JSX.Element {
   const artSmall = (z && z.art ? `<img class="art" style="width:84px;height:84px;border-radius:16px" src="${esc(z.art)}" alt="">` : artSvg(0).replace('class="art"', 'class="art" style="width:84px;height:84px;border-radius:16px"'));
 
   return (
-    <div class="roomview">
+    <div class={"roomview" + (sensorCount === 0 ? " slim" : "")}>
       <section class="card pad" style="display:flex;flex-direction:column">
         <span class="lab">Room</span>
         <h2 class="rname">{r.name}</h2>
@@ -120,29 +114,27 @@ export function Rooms(): JSX.Element {
         </section>
       </div>
 
-      <div class="col" style="display:grid;grid-template-rows:repeat(2,minmax(0,1fr));gap:12px">
-        {sn.hasTemp && temp != null ? (
-          <section class="card pad" style="display:flex;flex-direction:column;min-height:0">
-            <div class="row"><span class="lab grow">Temperature</span><span class="mono muted" style="font-size:17px">Last 24 h</span></div>
-            <div class="bignum">{temp.toFixed(1)}<small>°C</small></div>
-            <p class="muted" style="font-size:21px">{comfort}{sn.hum != null ? " · " + sn.hum + "% humidity" : ""}</p>
-            <div class="push" style="height:76px"><Raw html={tspark(sn.tser, 300, 76)} /></div>
-            <div class="row mono muted" style="justify-content:space-between;font-size:17px;margin-top:6px"><span>Low {lo.toFixed(1)}°</span><span>High {hi.toFixed(1)}°</span></div>
-          </section>
-        ) : (
-          <EmptyCard label="Temperature" msg="No temperature sensor set" />
-        )}
-        {sn.hasMotion ? (
-          <section class="card pad" style="display:flex;flex-direction:column;min-height:0">
-            <div class="row"><span class="lab grow">Motion</span><span class="mono muted" style="font-size:17px">Last 12 h</span></div>
-            <div class="bignum" style="font-size:54px;margin-top:10px">{occ ? "Occupied" : "Quiet"}</div>
-            <p class="muted" style="font-size:21px">{sn.last ? "Last motion " + agoText(sn.last) : "No motion recorded"}</p>
-            <div class="push" style="height:132px"><Raw html={mchart(sn.hist)} /></div>
-          </section>
-        ) : (
-          <EmptyCard label="Motion" msg="No motion sensor set" />
-        )}
-      </div>
+      {sensorCount > 0 && (
+        <div class="col" style={`display:grid;grid-template-rows:repeat(${sensorCount},minmax(0,1fr));gap:12px`}>
+          {showTemp && (
+            <section class="card pad" style="display:flex;flex-direction:column;min-height:0">
+              <div class="row"><span class="lab grow">Temperature</span><span class="mono muted" style="font-size:17px">Last 24 h</span></div>
+              <div class="bignum">{temp!.toFixed(1)}<small>°C</small></div>
+              <p class="muted" style="font-size:21px">{comfort}{sn.hum != null ? " · " + sn.hum + "% humidity" : ""}</p>
+              <div class="push" style="height:76px"><Raw html={tspark(sn.tser, 300, 76)} /></div>
+              <div class="row mono muted" style="justify-content:space-between;font-size:17px;margin-top:6px"><span>Low {lo.toFixed(1)}°</span><span>High {hi.toFixed(1)}°</span></div>
+            </section>
+          )}
+          {showMotion && (
+            <section class="card pad" style="display:flex;flex-direction:column;min-height:0">
+              <div class="row"><span class="lab grow">Motion</span><span class="mono muted" style="font-size:17px">Last 12 h</span></div>
+              <div class="bignum" style="font-size:54px;margin-top:10px">{occ ? "Occupied" : "Quiet"}</div>
+              <p class="muted" style="font-size:21px">{sn.last ? "Last motion " + agoText(sn.last) : "No motion recorded"}</p>
+              <div class="push" style="height:132px"><Raw html={mchart(sn.hist)} /></div>
+            </section>
+          )}
+        </div>
+      )}
     </div>
   );
 }

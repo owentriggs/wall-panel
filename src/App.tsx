@@ -20,6 +20,7 @@ import {
   detailId,
   closeLight,
   visibleTabs,
+  connectionStatus,
 } from "./state/store";
 import { Home } from "./ui/views/Home";
 import { Rooms } from "./ui/views/Rooms";
@@ -230,6 +231,7 @@ export function App({ demo = false, bare = false }: { demo?: boolean; bare?: boo
   const pr = playingRooms();
   const d = new Date();
   const tv = toast.value;
+  const conn = connectionStatus.value;
 
   return (
     <div class={"wp-host" + (bare ? " bare" : "")}>
@@ -281,10 +283,17 @@ export function App({ demo = false, bare = false }: { demo?: boolean; bare?: boo
               </>
             )}
 
-            <div class={"toast" + (tv.show ? " show" : "")} role="status" aria-live="polite">
+            <div class={"toast" + (tv.show ? " show" : "") + (tv.undo ? " undo" : "")} role="status" aria-live="polite">
               <span>{tv.msg}</span>
               {tv.undo && <button onClick={runUndo}><Icon n="undo" />Undo</button>}
             </div>
+
+            {conn !== "connected" && conn !== "connecting" && (
+              <div class={"conn-banner" + (conn === "disconnected" ? " down" : "")} role="status" aria-live="polite">
+                <i class="conn-dot" />
+                {conn === "disconnected" ? "Disconnected" : "Reconnecting…"}
+              </div>
+            )}
 
             <div class={"ambient" + (amb ? " show" : "")} aria-hidden="true" onClick={() => { setAmb(false); wake(); }}>
               <div class="drift" id="wp-drift">
