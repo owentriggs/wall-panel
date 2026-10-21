@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Wall Panel",
+        "description": "This adds the Wall Panel sidebar page and its shared, cross-device setup store. There is nothing to configure here — press Submit, then open “Wall Panel” from the sidebar."
+      }
+    },
+    "abort": {
+      "already_configured": "Wall Panel is already set up."
+    }
+  }
+}

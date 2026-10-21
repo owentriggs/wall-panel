@@ -1,0 +1,12 @@
+{
+  "domain": "wall_panel",
+  "name": "Wall Panel",
+  "version": "1.0.0",
+  "documentation": "https://github.com/owentriggs/wall-panel",
+  "issue_tracker": "https://github.com/owentriggs/wall-panel/issues",
+  "dependencies": ["http", "frontend", "panel_custom", "websocket_api"],
+  "codeowners": ["@owentriggs"],
+  "config_flow": true,
+  "iot_class": "local_push",
+  "integration_type": "service"
+}

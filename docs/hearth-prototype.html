@@ -1,0 +1,1237 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Hearth Wall Panel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600&family=Figtree:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<!-- AUTHORITATIVE design + Settings reference prototype (Owen's "Hearth Wall Panel (1).html").
+     Port the Settings system (CSS "/* settings */", the "SETTINGS" JS section, and the extra
+     sprite icons) into the Preact app in src/. Feed the entity picker from LIVE Home Assistant
+     entities, NOT the hardcoded HA[] catalog below. See HANDOFF.md Task 2. -->
+<style>
+/* Layout: one fixed 1280x800 frame scaled to fit, no top bar. Five tabs (Home, Rooms, Lights, Media, Scenes) share one bottom dock that is always visible; swipe moves between tabs. Solid background, flat solid cards, one corner radius everywhere, no outlines. Demo controls live outside the frame. */
+:root{
+  --outer:#070A0A; --bg:#0D1111; --card:#171D1D; --card-2:#212929; --sel:#2C3636; --track:#2C3636;
+  --ink:#ECF1F0; --ink-2:#B0BCBA; --ink-3:#8A9896;
+  --accent:#8DBFB4; --accent-ink:#0A1412;
+  --glow:#E8C27A; --glow-ink:#241A06;
+  --R:22px;
+  --f-display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --f-body:'Figtree','Segoe UI',system-ui,sans-serif;
+  --f-mono:'DM Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --outer:#C9D2D0; --bg:#E6EBEA; --card:#FFFFFF; --card-2:#EFF3F2; --sel:#DFE7E5; --track:#D3DCDA;
+  --ink:#10201F; --ink-2:#3A4E4B; --ink-3:#586D6A;
+  --accent:#2F6F66; --accent-ink:#FFFFFF; --glow:#E0A94A; --glow-ink:#2A1A00;
+  color-scheme:light}}
+:root[data-theme="light"]{
+  --outer:#C9D2D0; --bg:#E6EBEA; --card:#FFFFFF; --card-2:#EFF3F2; --sel:#DFE7E5; --track:#D3DCDA;
+  --ink:#10201F; --ink-2:#3A4E4B; --ink-3:#586D6A;
+  --accent:#2F6F66; --accent-ink:#FFFFFF; --glow:#E0A94A; --glow-ink:#2A1A00;
+  color-scheme:light}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--outer);color:var(--ink);font:20px/1.35 var(--f-body);-webkit-font-smoothing:antialiased;overflow:hidden;
+  padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0;text-align:left}
+h1,h2,h3,p{margin:0}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.ic{width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic.f{fill:currentColor}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--ink-2)}
+
+#vp{height:100%;display:flex;flex-direction:column;gap:10px}
+#fit{position:relative;flex:1;min-height:0}
+.stage{position:absolute;left:50%;top:50%;width:1280px;height:800px;transform:translate(-50%,-50%) scale(var(--s,1));border-radius:32px;overflow:hidden;background:var(--bg);user-select:none;-webkit-user-select:none;touch-action:pan-y}
+.card{background:var(--card);border-radius:var(--R)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:60px;padding:0 24px;border-radius:var(--R);background:var(--card-2);font-weight:600;font-size:20px;white-space:nowrap}
+.btn.primary{background:var(--ink);color:var(--bg)}
+.btn:active,.tile-hit:active,.rchip:active,.dock-btn:active,.scn:active,.sc:active,.round:active{transform:scale(.97)}
+.round{width:64px;height:64px;border-radius:20px;background:var(--card-2);display:grid;place-items:center;flex:none;transition:transform .12s}
+.round.solid{background:var(--ink);color:var(--bg)}
+.round.big{width:96px;height:96px;border-radius:30px}
+.round.big .ic{width:42px;height:42px}
+.row{display:flex;align-items:center;gap:14px}
+.grow{flex:1;min-width:0}
+.push{margin-top:auto}
+.lab{font-size:17px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.h3{font:600 28px var(--f-display);letter-spacing:-.01em}
+
+
+.home{display:grid;grid-template-columns:376px minmax(0,1fr);gap:12px;height:100%}
+.hero{padding:32px;display:flex;flex-direction:column;min-width:0}
+.hero .time{font:500 100px/1 var(--f-display);letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.hero .date{font-size:24px;color:var(--ink-2);margin-top:10px}
+.chip{display:inline-flex;align-items:center;gap:10px;height:48px;padding:0 18px;border-radius:16px;background:var(--card-2);font-size:20px;font-weight:500;margin-top:22px;align-self:flex-start}
+.chip .ic{width:24px;height:24px}
+.hero .status{margin-top:auto;display:grid;gap:14px}
+.hero .status h2{font:500 36px/1.1 var(--f-display);letter-spacing:-.02em}
+.srow{display:flex;gap:14px;align-items:center;font-size:21px;color:var(--ink-2)}
+.srow .ic{color:var(--ink)}
+.hero .btn{margin-top:6px;width:100%}
+.hgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:minmax(0,1.45fr) minmax(0,1fr);gap:12px;min-width:0}
+.tile{position:relative;padding:28px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.tile-hit{position:absolute;inset:0;border-radius:var(--R);transition:transform .12s}
+.tile>*:not(.tile-hit){position:relative;pointer-events:none}
+.tile .act{pointer-events:auto}
+.tile .tic{width:76px;height:76px;border-radius:24px;background:var(--card-2);display:grid;place-items:center;transition:background .3s,color .3s}
+.tile .tic .ic{width:38px;height:38px}
+.tile.on .tic{background:var(--ink);color:var(--bg)}
+.tile .tt{font:500 34px var(--f-display);letter-spacing:-.01em}
+.tile .ts{font-size:22px;color:var(--ink-2);margin-top:2px}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.pill{height:42px;padding:0 16px;border-radius:14px;background:var(--card-2);color:var(--ink-3);font-size:18px;font-weight:600;display:inline-flex;align-items:center;transition:background .25s,color .25s}
+.pill.on{background:var(--sel);color:var(--ink)}
+.art{width:92px;height:92px;border-radius:18px;flex:none;display:block}
+.prog{height:8px;border-radius:4px;background:var(--track);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--ink);border-radius:4px}
+.ctl{display:flex;gap:10px}
+.ctl .round{width:60px;height:60px}
+.scrow{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:auto}
+.sc{display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;height:128px;padding:16px;border-radius:18px;background:var(--card-2);font-weight:600;font-size:19px;line-height:1.15;transition:transform .12s,background .25s}
+.sc.cur{background:var(--sel)}
+
+.rooms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:12px;height:100%}
+.rcard{padding:20px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.rh{display:flex;align-items:center;gap:12px;margin-bottom:2px}
+.rh h3{font:500 28px var(--f-display);letter-spacing:-.01em}
+.rh p{font-size:19px;color:var(--ink-2)}
+.rl{display:flex;flex-direction:column;gap:8px}
+.rchip{display:flex;align-items:center;gap:14px;height:58px;padding:0 16px 0 10px;border-radius:18px;background:var(--card-2);transition:background .25s,transform .12s;min-width:0}
+.rchip .tic{width:44px;height:44px;border-radius:14px;background:var(--track);display:grid;place-items:center;flex:none;transition:background .3s,color .3s}
+.rchip .tic .ic{width:24px;height:24px}
+.rchip.on{background:var(--sel)}
+.rchip.on .tic{background:var(--lc,var(--ink));color:var(--glow-ink)}
+.rchip .rn{flex:1;min-width:0;font-size:21px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rchip .rs{font:400 18px var(--f-mono);color:var(--ink-2)}
+
+.view{position:absolute;left:32px;right:32px;top:32px;bottom:132px;min-height:0;will-change:transform}
+.view.slide-l{animation:sl .32s cubic-bezier(.2,.8,.2,1)}
+.view.slide-r{animation:sr .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes sl{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:none}}
+@keyframes sr{from{opacity:0;transform:translateX(-60px)}to{opacity:1;transform:none}}
+.dock{z-index:36;position:absolute;left:50%;bottom:28px;transform:translateX(-50%);display:flex;gap:8px;padding:10px;border-radius:var(--R);background:var(--card)}
+.dock-btn{height:68px;min-width:68px;padding:0 20px;border-radius:calc(var(--R) - 6px);display:flex;align-items:center;justify-content:center;gap:12px;font-weight:600;font-size:21px;color:var(--ink-2);transition:background .25s,color .25s,transform .12s}
+.dock-btn.cur{background:var(--sel);color:var(--ink)}
+.dock-btn .lb{display:none}
+.dock-btn.cur .lb{display:inline}
+
+.split{display:grid;gap:12px;height:100%;min-width:0}
+.col{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}
+.pad{padding:26px}
+.rail{display:flex;flex-direction:column;gap:6px;padding:12px;height:100%}
+.rail-item{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:68px;padding:0 20px;border-radius:calc(var(--R) - 6px);font-size:22px;font-weight:600}
+.rail-item small{font-size:18px;font-weight:500;color:var(--ink-3)}
+.rail-item.cur{background:var(--sel)}
+.rail-item.cur small{color:var(--ink-2)}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:12px;min-width:0}
+.cards.scroll{overflow-y:auto;scrollbar-width:none;align-content:start;touch-action:pan-y}
+.lc{padding:22px 24px;display:flex;flex-direction:column;min-width:0}
+.lc .head{display:flex;align-items:center;gap:16px}
+.lc .tic{width:68px;height:68px;border-radius:22px;background:var(--card-2);display:grid;place-items:center;flex:none;transition:background .3s,color .3s}
+.lc.on .tic{background:var(--lc,var(--glow));color:var(--glow-ink)}
+.lc .nm{font-size:23px;font-weight:600;line-height:1.15}
+.lc .rm{font-size:18px;color:var(--ink-3)}
+.lc .pc{font:500 52px/1 var(--f-display);letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin-top:auto}
+.lc .pc small{font:500 22px var(--f-body);color:var(--ink-2)}
+.lc .pc .off{color:var(--ink-3)}
+.lc.tall .pc{font-size:76px}
+.lc.tall .tic{width:84px;height:84px;border-radius:26px}
+.lc.tall .tic .ic{width:40px;height:40px}
+.lc.tall .nm{font-size:27px}
+.lc.tall .seg{margin-top:12px}
+.lc.tall .seg button{height:64px}
+.seg{display:flex;gap:8px;margin-top:8px}
+.seg button{flex:1;height:52px;border-radius:16px;background:var(--card-2);text-align:center;font-weight:600;font-size:19px}
+.seg button.cur{background:var(--sel);color:var(--ink)}
+.rng{-webkit-appearance:none;appearance:none;width:100%;height:60px;background:transparent;margin:0;cursor:pointer;touch-action:pan-y;display:block}
+.rng::-webkit-slider-runnable-track{height:18px;border-radius:9px;background:linear-gradient(to right,var(--fill,var(--accent)) var(--p,50%),var(--track) var(--p,50%))}
+.rng::-moz-range-track{height:18px;border-radius:9px;background:linear-gradient(to right,var(--fill,var(--accent)) var(--p,50%),var(--track) var(--p,50%))}
+.rng::-webkit-slider-thumb{-webkit-appearance:none;width:42px;height:42px;margin-top:-12px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.rng::-moz-range-thumb{width:42px;height:42px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.sw{width:76px;height:44px;border-radius:22px;background:var(--track);position:relative;flex:none;transition:background .2s;display:block}
+.sw::after{content:"";position:absolute;top:4px;left:4px;width:36px;height:36px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3);transition:transform .2s}
+.sw[aria-checked="true"]{background:var(--accent)}
+.sw[aria-checked="true"]::after{transform:translateX(32px)}
+.swb{display:inline-flex;min-width:76px;min-height:60px;align-items:center;justify-content:center}
+.bar{flex:none;height:92px;padding:0 14px 0 28px;display:flex;align-items:center;gap:10px}
+.bar .btn{min-height:64px;padding:0 20px;font-size:19px}
+
+.scn{padding:28px;display:flex;flex-direction:column;justify-content:space-between;min-width:0;transition:transform .12s,background .25s}
+.scn .tic{width:76px;height:76px;border-radius:24px;background:var(--card-2);display:grid;place-items:center}
+.scn .tic .ic{width:38px;height:38px}
+.scn b{display:block;font:500 32px var(--f-display);letter-spacing:-.01em}
+.scn p{font-size:19px;color:var(--ink-2);line-height:1.3;margin-top:6px}
+.scn.cur{background:var(--sel)}
+.scn.cur .tic{background:var(--ink);color:var(--bg)}
+
+.np{padding:28px;display:flex;flex-direction:column;gap:16px}
+.np .art{width:226px;height:226px;border-radius:26px;margin:0 auto}
+.np .tt{font:500 38px/1.1 var(--f-display);letter-spacing:-.02em;text-align:center}
+.np .ar{font-size:23px;color:var(--ink-2);text-align:center;margin-top:-8px}
+.np .times{display:flex;justify-content:space-between;font:400 18px var(--f-mono);color:var(--ink-3);margin-top:-8px}
+.ctrl{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:auto}
+.ctrl .round{width:72px;height:72px;border-radius:24px}
+.ctrl .play{width:96px;height:96px;border-radius:32px;background:var(--ink);color:var(--bg);display:grid;place-items:center}
+.ctrl .play .ic{width:42px;height:42px}
+.ctrl .round.on{background:var(--sel);color:var(--ink)}
+.zrow{display:flex;align-items:center;gap:18px;height:76px}
+.zrow .zt{width:150px;flex:none}
+.zrow .zt b{display:block;font-size:23px;font-weight:600}
+.zrow .zt span{font-size:18px;color:var(--ink-2)}
+.zrow .round{width:60px;height:60px;border-radius:19px}
+.zrow .round.on{background:var(--ink);color:var(--bg)}
+.trk{display:flex;align-items:center;gap:16px;height:62px;width:100%;border-radius:16px;padding:0 6px;transition:background .2s}
+.trk:hover{background:var(--card-2)}
+.trk .art{width:52px;height:52px;border-radius:12px}
+.trk b{display:block;font-size:21px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trk span{font-size:18px;color:var(--ink-2)}
+.trk .mono{font-size:17px;color:var(--ink-3)}
+
+.toast{position:absolute;left:50%;bottom:130px;transform:translate(-50%,20px);opacity:0;visibility:hidden;transition:.25s;z-index:45;display:flex;align-items:center;gap:18px;padding:10px 10px 10px 26px;border-radius:var(--R);background:var(--ink);color:var(--bg);font-size:21px;font-weight:500;white-space:nowrap}
+.toast.show{opacity:1;visibility:visible;transform:translate(-50%,0)}
+.toast button{display:flex;align-items:center;gap:8px;height:52px;padding:0 20px;border-radius:16px;background:rgba(127,127,127,.25);color:var(--bg);font-weight:600}
+.ambient{position:absolute;inset:0;z-index:100;background:#000;opacity:0;visibility:hidden;transition:opacity 1.2s,visibility 1.2s;color:#d9e6e3}
+.ambient.show{opacity:1;visibility:visible}
+.ambient .drift{position:absolute;left:50%;top:50%;transform:translate(calc(-50% + var(--dx,0px)),calc(-50% + var(--dy,0px)));text-align:center;transition:transform 8s ease-in-out;opacity:.8}
+.ambient .t{font:500 190px/1 var(--f-display);letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.ambient .d{font-size:32px;margin-top:10px;opacity:.7}
+.ambient .a{display:flex;gap:14px;justify-content:center;margin-top:30px;font-size:22px;opacity:.65}
+
+#demo{flex:none;height:36px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;color:var(--ink-3)}
+#demo span{margin-right:8px;letter-spacing:.08em;text-transform:uppercase;font-size:12px;font-weight:600}
+#demo button{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:10px;font-size:14px;color:var(--ink-2);font-weight:500}
+#demo button:hover{background:var(--card)}
+#demo .ic{width:16px;height:16px}
+.hint{position:fixed;inset:0;z-index:200;display:none;place-items:center;text-align:center;padding:24px;background:var(--outer);font-size:18px;color:var(--ink-2)}
+@media (orientation:portrait) and (max-width:700px){.hint{display:grid}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+.roomview{display:grid;grid-template-columns:340px minmax(0,1.1fr) minmax(0,1fr);gap:12px;height:100%;min-width:0}
+.rname{font:500 46px/1.05 var(--f-display);letter-spacing:-.02em;margin-top:6px}
+.occ{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--accent);margin-left:10px;flex:none}
+.occ.off{background:var(--track)}
+.chip .occ{margin:0}
+.bignum{font:500 84px/1 var(--f-display);letter-spacing:-.03em;margin-top:12px;font-variant-numeric:tabular-nums}
+.bignum small{font:500 30px var(--f-body);color:var(--ink-2);margin-left:6px;letter-spacing:0}
+.bigmsg{flex:1;display:grid;place-items:center;text-align:center;color:var(--ink-3);gap:8px;align-content:center}
+.bigmsg .ic{width:44px;height:44px}
+.bigmsg p{font-size:21px}
+.zrow.cmp{height:68px}
+.zrow.lt .round.on{background:var(--lc);color:var(--glow-ink)}
+.chart{width:100%;height:100%;display:block}
+.ax{fill:var(--ink-3);font:15px var(--f-mono)}
+.spark{fill:none;stroke:var(--accent);stroke-width:3;stroke-linejoin:round}
+.spark-f{fill:color-mix(in srgb,var(--accent) 16%,transparent)}
+.mbar{fill:var(--track)}
+.mbar.now{fill:var(--accent)}
+.picker-scrim{position:absolute;inset:0;z-index:30}
+.picker{position:absolute;left:50%;bottom:128px;transform:translateX(-50%);z-index:35;display:flex;gap:8px;padding:10px;animation:rise .28s cubic-bezier(.2,.9,.3,1.1);box-shadow:0 18px 50px -20px rgba(0,0,0,.6)}
+@keyframes rise{from{opacity:0;transform:translate(-50%,16px)}to{opacity:1;transform:translate(-50%,0)}}
+.rbtn{width:206px;height:92px;padding:0 18px;border-radius:calc(var(--R) - 6px);background:var(--card-2);display:flex;flex-direction:column;justify-content:center;gap:4px;transition:background .2s,transform .12s}
+.rbtn:active{transform:scale(.97)}
+.rbtn.cur{background:var(--sel)}
+.rbtn b{font-size:22px;font-weight:600;display:flex;align-items:center}
+.rbtn span{font-size:18px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+
+/* media v2 */
+.spks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.spk{background:var(--card-2);border-radius:calc(var(--R) - 6px);padding:14px;display:flex;flex-direction:column;gap:10px;transition:background .2s}
+.spk.on{background:var(--sel)}
+.spk-b{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;min-height:60px;text-align:left}
+.spk-b .ic{width:30px;height:30px;margin-bottom:4px;color:var(--ink-3)}
+.spk.on .spk-b .ic{color:var(--ink)}
+.spk-b b{font-size:21px;font-weight:600;white-space:nowrap}
+.spk-b span{font-size:17px;color:var(--ink-2);white-space:nowrap}
+.stns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:12px;flex:1;min-height:0}
+.stn{position:relative;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;padding:16px;text-align:left;border-radius:calc(var(--R) - 6px);background:var(--card-2);transition:background .2s,transform .12s;min-width:0}
+.stn:active{transform:scale(.97)}
+.stn.cur{background:var(--sel)}
+.stn small{font-size:15px;letter-spacing:.1em;font-weight:600;color:var(--ink-3)}
+.stn b{font:600 24px/1.15 var(--f-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stn span{font-size:17px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stn .ic{position:absolute;top:14px;right:14px;width:26px;height:26px}
+.lst{flex:1;min-height:0;display:flex;flex-direction:column}
+.trk.cur{background:var(--card-2)}
+.livebox{height:64px;display:flex;align-items:center;justify-content:center;gap:14px;font-size:20px;color:var(--ink-2)}
+.livepill{display:inline-flex;align-items:center;gap:10px;height:40px;padding:0 16px;border-radius:14px;background:var(--card-2);color:var(--ink);font-weight:600;font-size:17px;letter-spacing:.08em;text-transform:uppercase}
+.livepill i{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.prog.live i{opacity:.3}
+.ctrl .round:disabled{opacity:.3}
+
+/* settings */
+.settings{position:absolute;inset:0;z-index:40;background:var(--bg);display:none;padding:32px;gap:12px;grid-template-columns:268px minmax(0,1fr)}
+.settings.open{display:grid;animation:sin .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes sin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.stage.in-set .toast{bottom:36px}
+.dock-set{margin-left:8px;min-width:68px;padding:0;color:var(--ink-3)}
+.settings .rail{padding:12px;gap:6px}
+.settings .rail-item .row{gap:12px}
+.settings .rail-item .ic{width:26px;height:26px}
+.rail-gap{height:10px}
+.s-back{color:var(--ink-2)}
+.s-main-col{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}
+.s-head{display:flex;align-items:center;gap:16px;min-height:76px;flex:none}
+.s-head h2{font:500 40px/1.05 var(--f-display);letter-spacing:-.02em}
+.s-head p{font-size:20px;color:var(--ink-2);margin-top:6px}
+.s-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+.s-two{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr)}
+.s-colstack{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}
+.s-colstack .s-row,.s-colstack .s-main{min-height:66px}
+.s-card{padding:20px;display:flex;flex-direction:column;min-height:0;min-width:0}
+.s-lab{font-size:17px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-bottom:8px}
+.s-list{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;touch-action:pan-y;display:flex;flex-direction:column;gap:2px}
+.s-list::-webkit-scrollbar,.s-plist::-webkit-scrollbar,.s-sh-body::-webkit-scrollbar{display:none}
+.s-row{display:flex;align-items:center;gap:10px;min-height:72px;flex:none;transition:opacity .2s}
+.s-row.dim{opacity:.45}
+.s-main{display:flex;align-items:center;gap:16px;flex:1;min-width:0;min-height:72px;padding:0 10px;border-radius:calc(var(--R) - 6px);text-align:left;transition:background .15s}
+button.s-main:hover,button.s-main:active{background:var(--card-2)}
+.s-ico{width:52px;height:52px;border-radius:16px;background:var(--card-2);display:grid;place-items:center;flex:none}
+.s-ico .ic{width:26px;height:26px}
+.s-txt{flex:1;min-width:0}
+.s-txt b{display:block;font-size:22px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-txt span{display:block;font-size:17px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-txt .mono{font-size:16px;color:var(--ink-3)}
+.s-val{font-size:20px;color:var(--ink-2);white-space:nowrap;flex:none}
+.s-chev{color:var(--ink-3);display:grid;flex:none}
+.s-chev .ic{width:24px;height:24px}
+.s-small{min-height:52px;padding:0 18px;font-size:18px;flex:none}
+.s-small .ic{width:22px;height:22px}
+.s-status{display:flex;align-items:center;gap:12px;font-size:22px;padding:4px 10px 10px}
+.s-dot{width:12px;height:12px;border-radius:50%;background:var(--accent);flex:none}
+.s-seg{margin:0;flex-wrap:wrap}
+.s-seg button{min-width:0;padding:0 18px;height:56px}
+.s-set{display:flex;flex-direction:column;gap:12px;padding:10px 10px 14px}
+.s-set .s-txt b{font-size:22px}
+.s-set .rng{height:48px}
+.s-rooms{grid-auto-rows:200px;align-content:start;flex:1;min-height:0}
+.s-rc{display:flex;flex-direction:column;gap:8px;padding:22px;text-align:left;transition:transform .12s}
+.s-rc:active{transform:scale(.97)}
+.s-rc b{font:500 30px/1.1 var(--f-display);letter-spacing:-.01em;margin-bottom:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-mini{display:flex;align-items:center;gap:10px;font-size:19px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-mini .ic{width:22px;height:22px;color:var(--ink-3)}
+.s-addtile{align-items:center;justify-content:center;color:var(--ink-3)}
+.s-addtile b{font:600 22px var(--f-body);margin:0;color:var(--ink-2)}
+.s-addtile .ic{width:36px;height:36px}
+/* sheets */
+.s-scrim{position:absolute;inset:0;z-index:42;background:rgba(0,0,0,.55)}
+.s-scrim.pick{z-index:45}
+.s-sheet{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:43;width:680px;max-height:704px;display:flex;flex-direction:column;padding:0;animation:pop .26s cubic-bezier(.2,.9,.3,1)}
+.s-sheet.pick{width:760px;height:704px;z-index:46}
+@keyframes pop{from{opacity:0;transform:translate(-50%,-47%)}to{opacity:1;transform:translate(-50%,-50%)}}
+.s-sh-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px 10px 28px;flex:none}
+.s-sh-head h3{font:500 32px/1.1 var(--f-display);letter-spacing:-.01em}
+.s-sh-head .round{background:var(--card-2)}
+.s-sh-body{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;padding:8px 28px 8px;display:flex;flex-direction:column;touch-action:pan-y}
+.s-sh-foot{display:flex;align-items:center;gap:12px;padding:16px 28px 24px;flex:none}
+.s-note{font-size:17px;color:var(--ink-2);line-height:1.25;min-width:0}
+.s-field{margin-bottom:18px;flex:none}
+.s-flab{font-size:17px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-bottom:10px}
+.s-sub{margin:4px 0 14px}
+.s-in{width:100%;height:64px;border-radius:calc(var(--R) - 6px);background:var(--card-2);color:var(--ink);font:500 24px var(--f-body);padding:0 20px;border:0;outline:0;user-select:text;-webkit-user-select:text}
+.s-in::placeholder{color:var(--ink-3)}
+.s-in:focus{background:var(--sel)}
+.s-chipset{display:flex;flex-wrap:wrap;gap:8px}
+.s-chip{height:56px;padding:0 18px;border-radius:calc(var(--R) - 6px);background:var(--card-2);font-weight:600;font-size:20px;transition:background .15s}
+.s-chip.cur,.s-ib.cur{background:var(--ink);color:var(--bg)}
+.s-chip:disabled{opacity:.35}
+.s-icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:10px}
+.s-ib{height:64px;border-radius:calc(var(--R) - 6px);background:var(--card-2);display:grid;place-items:center;transition:background .15s}
+.s-entrow{display:flex;gap:10px;align-items:center}
+.s-ent{flex:1;min-width:0;display:flex;align-items:center;gap:14px;min-height:72px;padding:0 20px;border-radius:calc(var(--R) - 6px);background:var(--card-2);text-align:left}
+.s-ent .s-txt b{font-size:21px}
+.s-ent>.ic{color:var(--ink-3);width:24px;height:24px}
+.s-entrow .round{background:var(--card-2);width:72px;height:72px}
+.s-field .s-row{min-height:72px;background:var(--card-2);border-radius:calc(var(--R) - 6px);padding-right:10px}
+.s-search{position:relative;flex:none}
+.s-search .ic{position:absolute;left:20px;top:18px;color:var(--ink-3)}
+.s-search .s-in{padding-left:60px}
+.s-plist{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;touch-action:pan-y;display:flex;flex-direction:column;gap:2px;padding-bottom:8px}
+.s-chk{width:36px;height:36px;border-radius:50%;background:var(--card-2);display:grid;place-items:center;flex:none;transition:background .15s}
+.s-chk.on{background:var(--ink);color:var(--bg)}
+.s-chk .ic{width:22px;height:22px}
+.s-pr .s-main:disabled{cursor:default}
+.btn:disabled{opacity:.35;cursor:default}
+</style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /> <path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /> <path d="M9 18h6" /> <path d="M10 22h4" /></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M21 16V3a1 1 0 0 0-1.28-.96l-10 2.917a1 1 0 0 0-.72.96V19" /> <circle cx="18" cy="16" r="3" /> <circle cx="6" cy="19" r="3" /></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /> <path d="M20 2v4" /> <path d="M22 4h-4" /> <circle cx="4" cy="20" r="2" /></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" /> <path d="M12 2v2" /> <path d="M12 20v2" /> <path d="m4.93 4.93 1.41 1.41" /> <path d="m17.66 17.66 1.41 1.41" /> <path d="M2 12h2" /> <path d="M20 12h2" /> <path d="m6.34 17.66-1.41 1.41" /> <path d="m19.07 4.93-1.41 1.41" /></symbol>
+  <symbol id="i-dinner" viewBox="0 0 24 24"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" /> <path d="M7 2v20" /> <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" /></symbol>
+  <symbol id="i-relax" viewBox="0 0 24 24"><path d="M20 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v3" /> <path d="M2 16a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z" /> <path d="M4 18v2" /> <path d="M20 18v2" /> <path d="M12 4v9" /></symbol>
+  <symbol id="i-movie" viewBox="0 0 24 24"><path d="m12.296 3.464 3.02 3.956" /> <path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z" /> <path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /> <path d="m6.18 5.276 3.1 3.899" /></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" /></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10" /> <path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="3" width="5" height="18" rx="1" /> <rect x="5" y="3" width="5" height="18" rx="1" /></symbol>
+  <symbol id="i-skipb" viewBox="0 0 24 24"><path d="M17.971 4.285A2 2 0 0 1 21 6v12a2 2 0 0 1-3.029 1.715l-9.997-5.998a2 2 0 0 1-.003-3.432z" /> <path d="M3 20V4" /></symbol>
+  <symbol id="i-skipf" viewBox="0 0 24 24"><path d="M21 4v16" /> <path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z" /></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="m18 14 4 4-4 4" /> <path d="m18 2 4 4-4 4" /> <path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22" /> <path d="M2 6h1.972a4 4 0 0 1 3.6 2.2" /> <path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45" /></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4" /> <path d="M3 11v-1a4 4 0 0 1 4-4h14" /> <path d="m7 22-4-4 4-4" /> <path d="M21 13v1a4 4 0 0 1-4 4H3" /></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2" /> <path d="M12 6h.01" /> <circle cx="12" cy="14" r="4" /> <path d="M12 14h.01" /></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" /> <path d="M16 9a5 5 0 0 1 0 6" /> <path d="M19.364 18.364a9 9 0 0 0 0-12.728" /></symbol>
+  <symbol id="i-tv" viewBox="0 0 24 24"><path d="m17 2-5 5-5-5" /> <rect width="20" height="15" x="2" y="7" rx="2" /></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5" /> <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" /></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" /> <path d="M16 14v6" /> <path d="M8 14v6" /> <path d="M12 16v6" /></symbol>
+  <symbol id="i-theme" viewBox="0 0 24 24"><path d="M12 2v2" /> <path d="M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715" /> <path d="M16 12a4 4 0 0 0-4-4" /> <path d="m19 5-1.256 1.256" /> <path d="M20 12h2" /></symbol>
+  <symbol id="i-sleep" viewBox="0 0 24 24"><path d="M18 5h4" /> <path d="M20 3v4" /> <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" /></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /> <path d="M3 3v5h5" /></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /> <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></symbol>
+  <symbol id="i-listmusic" viewBox="0 0 24 24"><path d="M16 5H3" /> <path d="M11 12H3" /> <path d="M11 19H3" /> <path d="M21 16V5" /> <circle cx="18" cy="16" r="3" /></symbol>
+  <symbol id="i-l-ceiling" viewBox="0 0 24 24"><path d="M12 2v5" /> <path d="M14.829 15.998a3 3 0 1 1-5.658 0" /> <path d="M20.92 14.606A1 1 0 0 1 20 16H4a1 1 0 0 1-.92-1.394l3-7A1 1 0 0 1 7 7h10a1 1 0 0 1 .92.606z" /></symbol>
+  <symbol id="i-l-floor" viewBox="0 0 24 24"><path d="M12 10v12" /> <path d="M17.929 7.629A1 1 0 0 1 17 9H7a1 1 0 0 1-.928-1.371l2-5A1 1 0 0 1 9 2h6a1 1 0 0 1 .928.629z" /> <path d="M9 22h6" /></symbol>
+  <symbol id="i-l-desk" viewBox="0 0 24 24"><path d="M10.293 2.293a1 1 0 0 1 1.414 0l2.5 2.5 5.994 1.227a1 1 0 0 1 .506 1.687l-7 7a1 1 0 0 1-1.687-.506l-1.227-5.994-2.5-2.5a1 1 0 0 1 0-1.414z" /> <path d="m14.207 4.793-3.414 3.414" /> <path d="M3 20a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" /> <path d="m9.086 6.5-4.793 4.793a1 1 0 0 0-.18 1.17L7 18" /></symbol>
+  <symbol id="i-l-wall" viewBox="0 0 24 24"><path d="M19.929 18.629A1 1 0 0 1 19 20H9a1 1 0 0 1-.928-1.371l2-5A1 1 0 0 1 11 13h6a1 1 0 0 1 .928.629z" /> <path d="M6 3a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" /> <path d="M8 6h4a2 2 0 0 1 2 2v5" /></symbol>
+  <symbol id="i-l-wallup" viewBox="0 0 24 24"><path d="M19.929 9.629A1 1 0 0 1 19 11H9a1 1 0 0 1-.928-1.371l2-5A1 1 0 0 1 11 4h6a1 1 0 0 1 .928.629z" /> <path d="M6 15a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z" /> <path d="M8 18h4a2 2 0 0 0 2-2v-5" /></symbol>
+  <symbol id="i-l-bulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /> <path d="M9 18h6" /> <path d="M10 22h4" /></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1" /> <rect width="7" height="7" x="14" y="3" rx="1" /> <rect width="7" height="7" x="14" y="14" rx="1" /> <rect width="7" height="7" x="3" y="14" rx="1" /></symbol>
+  <symbol id="i-temp" viewBox="0 0 24 24"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z" /></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z" /> <path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97" /></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" /></symbol>
+  <symbol id="i-steps" viewBox="0 0 24 24"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z" /> <path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z" /> <path d="M16 17h4" /> <path d="M4 13h4" /></symbol>
+  <symbol id="i-radio" viewBox="0 0 24 24"><path d="M16.247 7.761a6 6 0 0 1 0 8.478" /> <path d="M19.075 4.933a10 10 0 0 1 0 14.134" /> <path d="M4.925 19.067a10 10 0 0 1 0-14.134" /> <path d="M7.753 16.239a6 6 0 0 1 0-8.478" /> <circle cx="12" cy="12" r="2" /></symbol>
+  <symbol id="i-disc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="M6 12c0-1.7.7-3.2 1.8-4.2" /> <circle cx="12" cy="12" r="2" /> <path d="M18 12c0 1.7-.7 3.2-1.8 4.2" /></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4" /> <path d="M20 7H4" /> <path d="m8 21-4-4 4-4" /> <path d="M4 17h16" /></symbol>
+  <symbol id="i-eq" viewBox="0 0 24 24"><path d="M2 10v3" /> <path d="M6 6v11" /> <path d="M10 3v18" /> <path d="M14 8v7" /> <path d="M18 5v13" /> <path d="M22 10v3" /></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /> <circle cx="12" cy="12" r="3" /></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34" /> <circle cx="11" cy="11" r="8" /></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14" /> <path d="M12 5v14" /></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18" /> <path d="m6 6 12 12" /></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /> <path d="m15 5 4 4" /></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7" /> <path d="M19 12H5" /></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M10 11v6" /> <path d="M14 11v6" /> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /> <path d="M3 6h18" /> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M12 20h.01" /> <path d="M2 8.82a15 15 0 0 1 20 0" /> <path d="M5 12.859a10 10 0 0 1 14 0" /> <path d="M8.5 16.429a5 5 0 0 1 7 0" /></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /> <path d="M21 3v5h-5" /> <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /> <path d="M8 16H3v5" /></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M10 5H3" /> <path d="M12 19H3" /> <path d="M14 3v4" /> <path d="M16 17v4" /> <path d="M21 12h-9" /> <path d="M21 19h-5" /> <path d="M21 5h-7" /> <path d="M8 10v4" /> <path d="M8 12H3" /></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2" /> <line x1="8" x2="16" y1="21" y2="21" /> <line x1="12" x2="12" y1="17" y2="21" /></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="M12 6v6l4 2" /></symbol>
+  <symbol id="i-door" viewBox="0 0 24 24"><path d="M10 21H2" /> <path d="M10 3H7a2 2 0 00-2 2v16" /> <path d="M14 12h.01" /> <path d="M19 21V5a2 2 0 00-1.675-1.974l-6.163-1.013A1 1 0 0010 3v18a1 1 0 001.124.992z" /> <path d="M22 21h-3" /></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <line x1="12" x2="12" y1="8" y2="12" /> <line x1="12" x2="12.01" y1="16" y2="16" /></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /> <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></symbol>
+</svg>
+<div id="vp">
+  <div id="fit">
+    <div class="stage" id="stage">
+      <main class="view" id="view" aria-live="off"></main>
+      <nav class="dock" id="dock" aria-label="Main"></nav>
+      <div id="picker"></div>
+      <div id="settings" class="settings" aria-label="Settings"></div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <div class="ambient" id="ambient" aria-hidden="true">
+        <div class="drift" id="drift"><div class="t" id="amb-t"></div><div class="d" id="amb-d"></div><div class="a" id="amb-a"></div></div>
+      </div>
+    </div>
+  </div>
+  <div id="demo" role="toolbar" aria-label="Demo controls">
+    <span>Demo controls</span>
+    <button data-s="open"><svg class="ic"><use href="#i-gear"/></svg>Settings</button>
+    <button data-act="theme"><svg class="ic"><use href="#i-theme"/></svg>Light or dark</button>
+    <button data-act="demo-sleep"><svg class="ic"><use href="#i-sleep"/></svg>Sleep mode</button>
+    <button data-act="demo-reset"><svg class="ic"><use href="#i-reset"/></svg>Reset</button>
+  </div>
+</div>
+<div class="hint">This panel is built for a landscape wall tablet.<br>Turn your device sideways for the best view.</div>
+<script>
+/* ============================================================================
+   NOTE FOR THE PORT (Task 2): the JavaScript below is the ORIGINAL prototype's
+   full app. The app views (Home/Rooms/Lights/Media/Scenes) are ALREADY ported
+   to Preact in src/ — do NOT re-port them. Only port the SETTINGS system, which
+   is the section headed "SETTINGS" below:
+     - the kit: sHead/sCard/sRow/sVal/sSwitch/sSeg/sSet/sEmpty
+     - sheets: sSheet, fLab/fText/fChips/fIcons/fToggle/fEntity, editSheet, pickSheet
+     - editing: openEdit/saveEdit/removeEdit/roomRemovable
+     - picking: openPick/pickDone/addEntity  (feed from LIVE HA, not the HA[] catalog)
+     - sections: secOverview/secRooms/secLights/secMedia/secScenes/secDisplay
+     - railHtml/settingsHtml/renderSettings and the sAct dispatcher + its listeners
+   Also port the dock gear button (dockHtml adds data-s="open"), the display
+   settings (theme/clock/brightness/sleep via applyDisp), and the per-room sensor
+   map (S.map) + optional-sensor empty states already present in src/.
+   Persist edits via the persistence layer in src/state/persist.ts, and gate the
+   gear behind admin/PIN (hass.user.is_admin).
+   ========================================================================== */
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+const ic=(n)=>'<svg class="ic" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
+const icf=(n)=>'<svg class="ic f" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
+const esc=(s)=>String(s).replace(/[&<>"]/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const hhmm=(ts)=>new Date(ts).toLocaleTimeString(S&&S.disp&&S.disp.h12?'en-US':'en-GB',{hour:S&&S.disp&&S.disp.h12?'numeric':'2-digit',minute:'2-digit',hour12:!!(S&&S.disp&&S.disp.h12)});
+const plural=(n,w)=>n+' '+w+(n===1?'':'s');
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+
+const ROOMS=[{id:'living',name:'Living room',short:'Living'},{id:'kitchen',name:'Kitchen',short:'Kitchen'},{id:'bedroom',name:'Bedroom',short:'Bedroom'},{id:'office',name:'Office',short:'Office'},{id:'hall',name:'Hallway',short:'Hall'}];
+const ROOMS0=ROOMS.map((r)=>Object.assign({},r));
+const TABS=[{id:'home',name:'Home',icon:'home'},{id:'rooms',name:'Rooms',icon:'grid'},{id:'lights',name:'Lights',icon:'bulb'},{id:'media',name:'Media',icon:'music'},{id:'scenes',name:'Scenes',icon:'sparkles'}];
+const SCENES=[
+  {id:'morning',name:'Good morning',icon:'sun',desc:'Kitchen and hall lights up, radio on in the kitchen.'},
+  {id:'dinner',name:'Dinner',icon:'dinner',desc:'Warm kitchen lights, soft living room, quiet music.'},
+  {id:'relax',name:'Relax',icon:'relax',desc:'Lamps only, ceiling light off.'},
+  {id:'movie',name:'Movie time',icon:'movie',desc:'Living room dimmed, TV on, music paused.'},
+  {id:'night',name:'Goodnight',icon:'moon',desc:'Everything off except a dim bedside lamp.'},
+  {id:'off',name:'All off',icon:'power',desc:'All lights, music and the TV off.'}
+];
+const STATIONS=[
+  {n:'Radio 1',d:'Pop and new music',tag:'1',c:['#8A4A3B','#F0D9A0']},
+  {n:'Radio 2',d:'Easy listening',tag:'2',c:['#3B5D8A','#E9C06B']},
+  {n:'Radio 3',d:'Classical and jazz',tag:'3',c:['#2C6B52','#CFE3A8']},
+  {n:'Radio 4',d:'Talk and drama',tag:'4',c:['#2F6F66','#E8C27A']},
+  {n:'Radio 6 Music',d:'Alternative and indie',tag:'6',c:['#5B4A8A','#E3D2F0']},
+  {n:'World Service',d:'World news',tag:'WS',c:['#44566B','#D9E4EE']}
+];
+const PLAYLISTS=[['Morning Coffee',0],['Dinner Party',2],['Sunday Slow',1],['Focus',3]];
+const TRACKS=[['Slow Tide','Harbour Lights',212],['Paper Lanterns','The Quiet Hours',187],['Evening Drive','Mara Voss',243],['Low Sun','Kestrel and Fern',201]];
+
+function seed(){
+  ROOMS.splice(0,ROOMS.length,...ROOMS0.map((r)=>Object.assign({},r)));STATIONS.forEach((s)=>{s.show=true;});
+  const E={ceil:'light.living_ceiling',lamp:'light.living_floor_lamp',shelf:'light.living_shelf',worktop:'light.kitchen_worktop',pend:'light.kitchen_island',bedside:'light.bedroom_bedside',bceil:'light.bedroom_ceiling',desk:'light.office_desk',oceil:'light.office_ceiling',hall:'light.hallway_light',porch:'light.porch_light'};
+  const SE={morning:'scene.good_morning',dinner:'scene.dinner',relax:'scene.relax',movie:'scene.movie_time',night:'scene.goodnight',off:'script.all_off'};
+  const L=(id,room,name,icon,on,level,warm,w)=>({id:id,type:'light',ent:E[id],room:room,name:name,icon:icon,on:on,level:level,warm:warm,w:w});
+  return {
+    tab:'home',room:'living',rroom:'living',picker:false,lastScene:null,
+    devices:[
+      L('ceil','living','Ceiling light','l-ceiling',true,70,60,24),L('lamp','living','Floor lamp','l-floor',true,45,85,9),L('shelf','living','Shelf lights','l-wallup',false,40,90,6),
+      L('worktop','kitchen','Worktop lights','l-wall',false,100,30,18),L('pend','kitchen','Island pendants','l-ceiling',true,60,70,14),
+      L('bedside','bedroom','Bedside lamps','l-desk',false,30,90,8),L('bceil','bedroom','Ceiling light','l-ceiling',false,60,60,20),
+      L('desk','office','Desk light','l-desk',true,80,20,12),L('oceil','office','Ceiling light','l-ceiling',false,70,35,20),
+      L('hall','hall','Hall light','l-bulb',false,60,60,10),L('porch','hall','Porch light','l-wall',false,100,70,8),
+      {id:'tv',type:'tv',ent:'media_player.living_room_tv',room:'living',name:'TV',on:false}
+    ],
+    media:{playing:false,source:'lib',mtab:'radio',st:4,i:0,pos:38,shuffle:false,repeat:false,zones:[{id:'kitchen',name:'Kitchen',ent:'media_player.kitchen_speaker',on:true,vol:35},{id:'living',name:'Living room',ent:'media_player.living_room_speaker',on:false,vol:30},{id:'bedroom',name:'Bedroom',ent:'media_player.bedroom_speaker',on:false,vol:20},{id:'office',name:'Office',ent:'media_player.office_speaker',on:false,vol:25}]},
+    sensors:makeSensors(),
+    set:null,edit:null,pick:null,syncAt:Date.now(),
+    scn:SCENES.map((s)=>Object.assign({},s,{ent:SE[s.id],show:true,builtin:true})),
+    map:{living:{temp:'sensor.living_room_temperature',hum:'sensor.living_room_humidity',motion:'binary_sensor.living_room_motion'},kitchen:{temp:'sensor.kitchen_temperature',hum:'sensor.kitchen_humidity',motion:'binary_sensor.kitchen_motion'},bedroom:{temp:'sensor.bedroom_temperature',hum:'sensor.bedroom_humidity',motion:'binary_sensor.bedroom_motion'},office:{temp:'sensor.office_temperature',hum:'sensor.office_humidity',motion:'binary_sensor.office_motion'},hall:{temp:'sensor.hallway_temperature',hum:'sensor.hallway_humidity',motion:'binary_sensor.hallway_motion'}},
+    disp:{theme:'auto',h12:false,bright:100,sleep:120}
+  };
+}
+let S=seed();
+const dev=(id)=>S.devices.find((d)=>d.id===id);
+const visScenes=()=>S.scn.filter((s)=>s.show);
+const lights=()=>S.devices.filter((d)=>d.type==='light');
+const roomLights=(r)=>lights().filter((d)=>d.room===r);
+const playingRooms=()=>S.media.playing?S.media.zones.filter((z)=>z.on):[];
+function lightColor(d){
+  const t=d.warm/100,a=[242,169,59],b=[190,226,242];
+  return 'rgb('+a.map((v,i)=>Math.round(b[i]+(v-b[i])*t)).join(',')+')';
+}
+const mmss=(s)=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+function artSvg(i){
+  const c=[['#2F6F66','#E8C27A'],['#3B5D8A','#E9C06B'],['#8A4A3B','#F0D9A0'],['#2C6B52','#CFE3A8']][i%4];
+  return '<svg class="art" viewBox="0 0 230 230" role="img" aria-label="Album art"><rect width="230" height="230" fill="'+c[0]+'"/><circle cx="150" cy="84" r="46" fill="'+c[1]+'"/><path d="M0 170c40-26 80-26 120-6s80 20 110-6v72H0z" fill="#000" opacity=".22"/><path d="M0 190c40-20 80-20 120-4s80 14 110-4v48H0z" fill="#000" opacity=".2"/></svg>';
+}
+
+function radioArt(k){
+  const s=STATIONS[k],c=s.c;
+  return '<svg class="art" viewBox="0 0 230 230" role="img" aria-label="'+s.n+'"><rect width="230" height="230" fill="'+c[0]+'"/><g fill="none" stroke="'+c[1]+'" stroke-width="10" stroke-linecap="round"><path d="M72 66a62 62 0 0 1 86 0" opacity=".45"/><path d="M92 86a34 34 0 0 1 46 0"/></g><text x="115" y="176" text-anchor="middle" font-size="'+(s.tag.length>1?84:104)+'" font-weight="600" fill="'+c[1]+'" font-family="Bricolage Grotesque,sans-serif">'+s.tag+'</text></svg>';
+}
+function nowInfo(){
+  const m=S.media;
+  if(m.source==='radio'){const s=STATIONS[m.st];return {live:true,title:'BBC '+s.n,sub:s.d+' · Live',art:radioArt(m.st),dur:0};}
+  const t=TRACKS[m.i];return {live:false,title:t[0],sub:t[1],art:artSvg(m.i),dur:t[2]};
+}
+const progHtml=(info,st)=>'<div class="prog'+(info.live?' live':'')+'"'+(st?' style="'+st+'"':'')+'><i style="width:'+(info.live?100:(S.media.pos/info.dur*100).toFixed(1))+'%"></i></div>';
+function toNodes(html){const t=document.createElement('template');t.innerHTML=html;return t.content;}
+function syncKids(a,b){
+  const ac=Array.from(a.childNodes),bc=Array.from(b.childNodes),n=Math.max(ac.length,bc.length);
+  for(let i=0;i<n;i++){
+    if(!ac[i]) a.appendChild(bc[i].cloneNode(true));
+    else if(!bc[i]) a.removeChild(ac[i]);
+    else if(ac[i].nodeType!==bc[i].nodeType||ac[i].nodeName!==bc[i].nodeName) a.replaceChild(bc[i].cloneNode(true),ac[i]);
+    else if(ac[i].nodeType!==1){ if(ac[i].nodeValue!==bc[i].nodeValue) ac[i].nodeValue=bc[i].nodeValue; }
+    else {
+      const x=ac[i],y=bc[i];
+      Array.from(x.attributes).forEach((at)=>{ if(!y.hasAttribute(at.name)) x.removeAttribute(at.name); });
+      Array.from(y.attributes).forEach((at)=>{ if(x.getAttribute(at.name)!==at.value) x.setAttribute(at.name,at.value); });
+      if(x.tagName==='INPUT'&&x!==document.activeElement) x.value=y.getAttribute('value');
+      syncKids(x,y);
+    }
+  }
+}
+function paint(el,html){syncKids(el,toNodes(html));}
+const sw=(on)=>'<span class="sw" aria-checked="'+on+'"></span>';
+function rng(id,prop,label,min,max,step,val,fill){
+  const p=((val-min)/(max-min)*100).toFixed(1);
+  return '<input class="rng" type="range" id="r-'+id+'-'+prop+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'" data-range="'+id+':'+prop+'" aria-label="'+esc(label)+'" style="--p:'+p+'%'+(fill?';--fill:'+fill:'')+'">';
+}
+
+/* ---------- home page: overview + lights, media, scenes ---------- */
+function mediaCtl(){
+  const m=S.media;
+  return '<div class="ctl act"><button class="round" data-skip="-1" aria-label="Previous">'+ic('skipb')+'</button><button class="round solid" data-play="1" aria-label="'+(m.playing?'Pause':'Play')+'">'+icf(m.playing?'pause':'play')+'</button><button class="round" data-skip="1" aria-label="Next">'+ic('skipf')+'</button></div>';
+}
+function viewHome(){
+  const now=Date.now(),d=new Date(),h=d.getHours(),on=lights().filter((l)=>l.on).length,pr=playingRooms(),m=S.media,info=nowInfo();
+  const greet=h<5?'Good night':h<12?'Good morning':h<18?'Good afternoon':'Good evening';
+  const hero='<section class="hero card" aria-label="Overview"><div class="time">'+hhmm(now)+'</div><div class="date">'+d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</div>'+
+    '<span class="chip">'+ic('cloud')+'11° and light rain</span>'+
+    '<div class="status"><h2>'+greet+'</h2><div class="srow">'+ic('bulb')+(on?plural(on,'light')+' on':'All lights are off')+'</div>'+
+    '<div class="srow">'+ic('music')+(pr.length?'Playing in '+pr.map((z)=>z.name).join(' and '):'Nothing playing')+'</div>'+
+    (on?'<button class="btn" data-alloff="1">'+ic('power')+'All lights off</button>':'')+'</div></section>';
+  const lt='<section class="tile card'+(on?' on':'')+'"><button class="tile-hit" data-tab="lights" aria-label="Open lights"></button><span class="tic">'+ic('bulb')+'</span>'+
+    '<div class="push"><div class="tt">Lights</div><div class="ts">'+on+' of '+lights().length+' on</div><div class="pills">'+ROOMS.map((r)=>'<span class="pill'+(roomLights(r.id).some((l)=>l.on)?' on':'')+'">'+r.short+'</span>').join('')+'</div></div></section>';
+  const md='<section class="tile card'+(pr.length?' on':'')+'"><button class="tile-hit" data-tab="media" aria-label="Open media"></button>'+
+    '<div class="row">'+info.art+'<div class="grow"><div class="tt" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(info.title)+'</div><div class="ts" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(info.sub)+'</div></div></div>'+
+    '<div class="push"><div class="ts" style="margin:0 0 12px">'+(pr.length?'Playing in '+plural(pr.length,'room'):m.playing?'No room selected':'Paused')+'</div>'+progHtml(info)+'<div style="margin-top:16px">'+mediaCtl()+'</div></div></section>';
+  const sc='<section class="tile card" style="grid-column:1/3" aria-label="Scenes"><div class="row"><span class="lab grow">Scenes</span></div>'+
+    '<div class="scrow">'+visScenes().map((s)=>'<button class="sc act'+(S.lastScene===s.id?' cur':'')+'" data-scene="'+s.id+'">'+ic(s.icon)+'<span>'+s.name+'</span></button>').join('')+'</div></section>';
+  return '<div class="home">'+hero+'<div class="hgrid">'+lt+md+sc+'</div></div>';
+}
+
+/* ---------- rooms: sensors, picker and room overview ---------- */
+function makeSensors(){
+  const now=Date.now(),base={living:[20.4,48,3],kitchen:[21.1,52,40],bedroom:[18.9,50,185],office:[20.0,45,25],hall:[18.2,47,8]},out={};
+  ROOMS.forEach((r,ri)=>{
+    let seedN=(ri+3)*7919;const rnd=()=>{seedN=(seedN*9301+49297)%233280;return seedN/233280;};
+    const b=base[r.id]||[20.5,48,30],hist=[],tser=[];
+    for(let i=0;i<12;i++) hist.push(Math.round(rnd()*(i>8?3:2)*(r.id==='bedroom'?0.4:1)));
+    for(let i=0;i<24;i++) tser.push(+(b[0]+Math.sin(i/3.5+ri)*0.45-(23-i)*0.01).toFixed(2));
+    tser[23]=b[0];
+    out[r.id]={temp:b[0],hum:b[1],last:now-b[2]*60000,hist:hist,tser:tser};
+  });
+  return out;
+}
+function tspark(a,w,h){
+  const mx=Math.max.apply(null,a)+0.25,mn=Math.min.apply(null,a)-0.25;
+  const pts=a.map((v,i)=>[(i/(a.length-1))*w,h-4-((v-mn)/(mx-mn))*(h-10)]);
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(''),e=pts[pts.length-1];
+  return '<svg class="chart" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" role="img" aria-label="Temperature over the last 24 hours"><path class="spark-f" d="'+line+'L'+w+' '+h+'L0 '+h+'Z"/><path class="spark" vector-effect="non-scaling-stroke" d="'+line+'"/><circle cx="'+(e[0]-5).toFixed(1)+'" cy="'+e[1].toFixed(1)+'" r="5" fill="var(--accent)"/></svg>';
+}
+function mchart(hist){
+  const W=460,H=132,bw=W/12,mx=Math.max(4,Math.max.apply(null,hist)),h=new Date().getHours();
+  let s='<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Motion events per hour, last 12 hours">';
+  hist.forEach((v,i)=>{
+    const bh=Math.max(5,(v/mx)*(H-34)),x=i*bw+(bw-24)/2;
+    s+='<rect class="mbar'+(i===11?' now':'')+'" x="'+x.toFixed(1)+'" y="'+(H-24-bh).toFixed(1)+'" width="24" height="'+bh.toFixed(1)+'" rx="7"/>';
+    if(i%3===0||i===11) s+='<text class="ax" x="'+(i*bw+bw/2)+'" y="'+(H-4)+'" text-anchor="middle">'+String((h-11+i+24)%24).padStart(2,'0')+'</text>';
+  });
+  return s+'</svg>';
+}
+const agoText=(ts)=>{const m=Math.max(0,Math.round((Date.now()-ts)/60000));return m<1?'just now':m<60?m+' min ago':Math.floor(m/60)+' h '+(m%60)+' min ago';};
+const occupied=(r)=>Date.now()-S.sensors[r].last<10*60000;
+
+function pickerHtml(){
+  if(!S.picker) return '';
+  return '<div class="picker-scrim" data-act="close-picker"></div><div class="picker card" role="menu" aria-label="Choose a room">'+
+    ROOMS.map((r)=>{const sn=S.sensors[r.id],on=roomLights(r.id).filter((l)=>l.on).length;
+      return '<button class="rbtn'+(S.rroom===r.id?' cur':'')+'" role="menuitem" data-rroom="'+r.id+'"><b>'+r.name+(occupied(r.id)?'<i class="occ" title="Occupied"></i>':'')+'</b><span>'+sn.temp.toFixed(1)+'° · '+(on?on+' on':'lights off')+'</span></button>';}).join('')+'</div>';
+}
+
+function viewRoom(){
+  const r=ROOMS.find((x)=>x.id===S.rroom),sn=S.sensors[r.id],ls=roomLights(r.id),on=ls.filter((l)=>l.on).length;
+  const z=S.media.zones.find((x)=>x.id===r.id),tv=r.id==='living'?dev('tv'):null,m=S.media,info=nowInfo(),occ=occupied(r.id),mp=S.map[r.id]||{};
+  const comfort=sn.temp<18?'Cool':sn.temp>22?'Warm':'Comfortable',lo=Math.min.apply(null,sn.tser),hi=Math.max.apply(null,sn.tser);
+  const anyOn=on>0||(tv&&tv.on);
+  const over='<section class="card pad" style="display:flex;flex-direction:column"><span class="lab">Room</span><h2 class="rname">'+r.name+'</h2>'+
+    (mp.motion?'<span class="chip" style="margin-top:16px"><i class="occ'+(occ?'':' off')+'"></i>'+(occ?'Occupied':'Quiet')+'</span>':'')+
+    '<div class="status" style="margin-top:auto;display:grid;gap:14px">'+(mp.temp?'<div class="srow">'+ic('temp')+sn.temp.toFixed(1)+'° and '+sn.hum+'% humidity</div>':'')+
+    '<div class="srow">'+ic('bulb')+(on?on+' of '+ls.length+' lights on':'Lights off')+'</div>'+
+    '<div class="srow">'+ic('music')+(z?(z.on&&m.playing?'Playing '+esc(info.title):z.on?'Speaker on, paused':'Speaker off'):'No speaker here')+'</div>'+
+    (anyOn?'<button class="btn" style="margin-top:6px;width:100%" data-roomoff="'+r.id+'">'+ic('power')+'Turn everything off</button>':'')+'</div></section>';
+  const lrows=ls.map((l)=>'<div class="zrow cmp lt" style="--lc:'+lightColor(l)+'"><button class="round'+(l.on?' on':'')+'" data-toggle="'+l.id+'" aria-pressed="'+l.on+'" aria-label="'+esc(l.name)+'">'+ic(l.icon)+'</button><div class="zt"><b>'+esc(l.name)+'</b><span>'+(l.on?l.level+'%':'Off')+'</span></div><div class="grow">'+rng(l.id,'level',l.name+' brightness',1,100,1,l.level,l.on?lightColor(l):'var(--ink-3)')+'</div></div>').join('')+
+    (tv?'<div class="zrow cmp"><button class="round'+(tv.on?' on':'')+'" data-toggle="tv" aria-pressed="'+tv.on+'" aria-label="TV">'+ic('tv')+'</button><div class="zt grow"><b>TV</b><span>'+(tv.on?'On':'Off')+'</span></div><button class="swb" data-toggle="tv" role="switch" aria-checked="'+tv.on+'" aria-label="TV power">'+sw(tv.on)+'</button></div>':'');
+  const lights='<section class="card pad" style="flex:1;min-height:0"><div class="lab" style="margin-bottom:4px">Lights'+(tv?' and TV':'')+'</div>'+lrows+'</section>';
+  const media='<section class="card pad" style="flex:none;height:248px;display:flex;flex-direction:column">'+(z?
+    '<div class="row">'+info.art.replace('class="art"','class="art" style="width:84px;height:84px;border-radius:16px"')+'<div class="grow"><div class="h3" style="font-size:26px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(info.title)+'</div><div class="muted" style="font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(info.sub)+'</div></div><button class="round'+(z.on?' solid':'')+'" data-zone="'+z.id+'" aria-pressed="'+z.on+'" aria-label="Speaker in '+r.name+'">'+ic('speaker')+'</button></div>'+
+    progHtml(info,'margin-top:16px')+
+    '<div class="row push"><button class="round" data-skip="-1" aria-label="Previous track" style="width:56px;height:56px">'+ic('skipb')+'</button><button class="round solid" data-play="1" aria-label="'+(m.playing?'Pause':'Play')+'" style="width:56px;height:56px">'+icf(m.playing?'pause':'play')+'</button><button class="round" data-skip="1" aria-label="Next track" style="width:56px;height:56px">'+ic('skipf')+'</button><div class="grow" style="padding-left:10px">'+rng('z-'+z.id,'vol','Volume in '+r.name,0,100,1,z.vol,z.on?'var(--accent)':'var(--ink-3)')+'</div></div>':
+    '<span class="lab">Media</span><div class="bigmsg">'+ic('speaker')+'<p>No speaker in this room</p></div>')+'</section>';
+  const temp0='<section class="card pad" style="display:flex;flex-direction:column;min-height:0"><div class="row"><span class="lab grow">Temperature</span><span class="mono muted" style="font-size:17px">Last 24 h</span></div>'+
+    '<div class="bignum">'+sn.temp.toFixed(1)+'<small>°C</small></div><p class="muted" style="font-size:21px">'+comfort+' · '+sn.hum+'% humidity</p>'+
+    '<div class="push" style="height:76px">'+tspark(sn.tser,300,76)+'</div><div class="row mono muted" style="justify-content:space-between;font-size:17px;margin-top:6px"><span>Low '+lo.toFixed(1)+'°</span><span>High '+hi.toFixed(1)+'°</span></div></section>';
+  const motion0='<section class="card pad" style="display:flex;flex-direction:column;min-height:0"><div class="row"><span class="lab grow">Motion</span><span class="mono muted" style="font-size:17px">Last 12 h</span></div>'+
+    '<div class="bignum" style="font-size:54px;margin-top:10px">'+(occ?'Occupied':'Quiet')+'</div><p class="muted" style="font-size:21px">Last motion '+agoText(sn.last)+'</p>'+
+    '<div class="push" style="height:132px">'+mchart(sn.hist)+'</div></section>';
+  const emptyCard=(l,t)=>'<section class="card pad" style="display:flex;flex-direction:column;min-height:0"><span class="lab">'+l+'</span><div class="bigmsg">'+ic('alert')+'<p>'+t+'</p></div></section>';
+  const temp=mp.temp?temp0:emptyCard('Temperature','No temperature sensor chosen'),motion=mp.motion?motion0:emptyCard('Motion','No motion sensor chosen');
+  return '<div class="roomview">'+over+'<div class="col">'+lights+media+'</div><div class="col" style="display:grid;grid-template-rows:repeat(2,minmax(0,1fr));gap:12px">'+temp+motion+'</div></div>';
+}
+
+/* ---------- lights screen ---------- */
+function lightCard(d,all){
+  const room=ROOMS.find((r)=>r.id===d.room).name,wt=d.warm>66?2:d.warm>33?1:0;
+  return '<article class="lc card'+(all?'':' tall')+(d.on?' on':'')+'" style="--lc:'+lightColor(d)+'"><div class="head"><button class="tic" data-toggle="'+d.id+'" aria-label="'+esc(d.name)+(d.on?', on. Tap to turn off':', off. Tap to turn on')+'">'+ic(d.icon)+'</button>'+
+    '<div style="min-width:0"><div class="nm">'+esc(d.name)+'</div>'+(all?'<div class="rm">'+room+'</div>':'')+'</div></div>'+
+    '<div class="pc">'+(d.on?d.level+'<small>%</small>':'<span class="off">Off</span>')+'</div>'+
+    rng(d.id,'level',d.name+' brightness',1,100,1,d.level,d.on?lightColor(d):'var(--ink-3)')+
+    (all?'':'<div class="seg" role="group" aria-label="Colour"><button class="'+(d.on&&wt===0?'cur':'')+'" data-warm="'+d.id+':15">Cool</button><button class="'+(d.on&&wt===1?'cur':'')+'" data-warm="'+d.id+':50">Neutral</button><button class="'+(d.on&&wt===2?'cur':'')+'" data-warm="'+d.id+':90">Warm</button></div>')+'</article>';
+}
+function screenLights(){
+  const all=S.room==='all',list=all?lights():roomLights(S.room),rn=all?'All lights':ROOMS.find((r)=>r.id===S.room).name,on=list.filter((d)=>d.on).length;
+  const rail='<aside class="rail card" aria-label="Rooms"><button class="rail-item'+(all?' cur':'')+'" data-room="all">All lights<small>'+lights().filter((d)=>d.on).length+' on</small></button>'+
+    ROOMS.map((r)=>{const o=roomLights(r.id).filter((d)=>d.on).length;return '<button class="rail-item'+(S.room===r.id?' cur':'')+'" data-room="'+r.id+'">'+r.name+'<small>'+(o?o+' on':'off')+'</small></button>';}).join('')+'</aside>';
+  const grid=all?'<div class="cards scroll" style="flex:1;min-height:0;grid-auto-rows:232px">'+list.map((d)=>lightCard(d,true)).join('')+'</div>':
+    '<div class="cards" style="flex:1;min-height:0;grid-template-columns:repeat('+list.length+',minmax(0,1fr));grid-template-rows:minmax(0,1fr)">'+list.map((d)=>lightCard(d,false)).join('')+'</div>';
+  return '<div class="split" style="grid-template-columns:268px minmax(0,1fr)">'+rail+'<div class="col">'+grid+
+    '<div class="bar card"><div class="grow" style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b style="font-size:23px">'+rn+'</b><span class="muted" style="font-size:20px"> · '+on+' of '+list.length+' on</span></div>'+
+    '<button class="btn" data-preset="bright">Bright</button><button class="btn" data-preset="relax">Relax</button><button class="btn" data-preset="night">Night</button><button class="btn primary" data-roomall="off">All off</button></div></div></div>';
+}
+
+/* ---------- media screen ---------- */
+function screenMedia(){
+  const m=S.media,info=nowInfo(),pr=playingRooms(),live=info.live;
+  const where=pr.length===1?pr[0].name:plural(pr.length,'room');
+  const lab=pr.length?(live?'Live radio':'Playing')+' in '+where:m.playing?'No speaker selected':'Paused';
+  const seek=live?'<div class="livebox"><span class="livepill"><i></i>Live</span><span>Streaming now</span></div>':
+    '<div>'+rng('seek','pos','Track position',0,info.dur,1,Math.floor(m.pos),'var(--ink)')+'<div class="times"><span>'+mmss(m.pos)+'</span><span>'+mmss(info.dur)+'</span></div></div>';
+  const np='<section class="np card"><div class="lab" style="text-align:center">'+esc(lab)+'</div>'+info.art+
+    '<div class="tt" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(info.title)+'</div><div class="ar" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(info.sub)+'</div>'+seek+
+    '<div class="ctrl"><button class="round'+(m.shuffle&&!live?' on':'')+'" data-shuffle="1"'+(live?' disabled':'')+' aria-pressed="'+(m.shuffle&&!live)+'" aria-label="Shuffle">'+ic('shuffle')+'</button><button class="round" data-skip="-1" aria-label="'+(live?'Previous station':'Previous track')+'">'+ic('skipb')+'</button>'+
+    '<button class="play" data-play="1" aria-label="'+(m.playing?'Pause':'Play')+'">'+icf(m.playing?'pause':'play')+'</button><button class="round" data-skip="1" aria-label="'+(live?'Next station':'Next track')+'">'+ic('skipf')+'</button>'+
+    '<button class="round'+(m.repeat&&!live?' on':'')+'" data-repeat="1"'+(live?' disabled':'')+' aria-pressed="'+(m.repeat&&!live)+'" aria-label="Repeat">'+ic('repeat')+'</button></div></section>';
+  const spk='<section class="card" style="padding:20px"><div class="row" style="margin-bottom:12px"><span class="lab grow">Speakers</span><button class="btn" data-groupall="1" style="min-height:48px;padding:0 18px;font-size:18px">'+ic('link')+'Play everywhere</button></div>'+
+    '<div class="spks">'+m.zones.map((z)=>'<div class="spk'+(z.on?' on':'')+'"><button class="spk-b" data-zone="'+z.id+'" aria-pressed="'+z.on+'" aria-label="'+z.name+' speaker">'+ic('speaker')+'<b>'+z.name+'</b><span>'+(z.on?(m.playing?'Playing':'Ready')+' · '+z.vol+'%':'Off')+'</span></button>'+
+      rng('z-'+z.id,'vol',z.name+' volume',0,100,1,z.vol,z.on?'var(--accent)':'var(--ink-3)')+'</div>').join('')+'</div></section>';
+  const tab=m.mtab||'radio';
+  const tabs='<div class="seg" style="margin:0" role="tablist" aria-label="Browse">'+[['radio','Radio'],['lists','Playlists'],['tracks','Tracks']].map((t)=>'<button role="tab" aria-selected="'+(tab===t[0])+'" class="'+(tab===t[0]?'cur':'')+'" data-mtab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div>';
+  const trkRow=(art,name,sub,right,attr,cur)=>'<button class="trk'+(cur?' cur':'')+'" '+attr+'>'+art+'<span class="grow" style="min-width:0"><b>'+esc(name)+'</b><span>'+esc(sub)+'</span></span><span class="mono">'+right+'</span></button>';
+  let body;
+  if(tab==='radio') body='<div class="stns">'+STATIONS.map((s,k)=>({s:s,k:k})).filter((o)=>o.s.show!==false).map((o)=>{const s=o.s,k=o.k,cur=m.source==='radio'&&m.st===k;
+    return '<button class="stn'+(cur?' cur':'')+'" data-station="'+k+'" aria-label="BBC '+esc(s.n)+(cur?', now selected':'')+'">'+(cur&&m.playing?ic('eq'):'')+'<small>BBC</small><b>'+esc(s.n)+'</b><span>'+esc(s.d)+'</span></button>';}).join('')+'</div>';
+  else if(tab==='lists') body='<div class="lst">'+PLAYLISTS.map((p,k)=>trkRow(artSvg(p[1]),p[0],'Playlist','',' data-playlist="'+p[1]+'"',false)).join('')+'</div>';
+  else body='<div class="lst">'+TRACKS.map((t,i)=>trkRow(artSvg(i),t[0],t[1],mmss(t[2]),' data-track="'+i+'"',m.source==='lib'&&m.i===i)).join('')+'</div>';
+  const browse='<section class="card" style="padding:20px;flex:1;min-height:0;display:flex;flex-direction:column;gap:12px">'+tabs+body+'</section>';
+  return '<div class="split" style="grid-template-columns:480px minmax(0,1fr)">'+np+'<div class="col">'+spk+browse+'</div></div>';
+}
+
+/* ---------- scenes screen ---------- */
+function screenScenes(){
+  if(!visScenes().length) return '<section class="card pad" style="height:100%;display:flex"><div class="bigmsg">'+ic('sparkles')+'<p>No scenes shown. Choose some in Settings.</p></div></section>';
+  return '<div class="cards" style="height:100%;grid-template-rows:repeat(2,minmax(0,1fr))">'+visScenes().map((s)=>'<button class="scn card'+(S.lastScene===s.id?' cur':'')+'" data-scene="'+s.id+'"><span class="tic">'+ic(s.icon)+'</span><span><b>'+s.name+'</b><p>'+s.desc+'</p></span></button>').join('')+'</div>';
+}
+const VIEWS={home:viewHome,rooms:viewRoom,lights:screenLights,media:screenMedia,scenes:screenScenes};
+function dockHtml(){
+  return TABS.map((t)=>'<button class="dock-btn'+(S.tab===t.id?' cur':'')+'" data-tab="'+t.id+'" aria-label="'+t.name+'"'+(S.tab===t.id?' aria-current="page"':'')+'>'+ic(t.icon)+'<span class="lb">'+(t.id==='rooms'&&S.tab==='rooms'?ROOMS.find((r)=>r.id===S.rroom).name:t.name)+'</span></button>').join('')+'<button class="dock-btn dock-set" data-s="open" aria-label="Settings">'+ic('gear')+'</button>';
+}
+
+/* =====================================================================
+   SETTINGS  (PORT THIS SECTION — Task 2)
+   A small kit so any new setting can be added in minutes:
+   - sHead / sCard / sRow / sSet / sSeg / sSwitch ... build a settings page
+   - openEdit(kind,...) + editSheet() ... edit one item (fields: fText, fChips, fIcons, fToggle, fEntity)
+   - openPick({...}) + pickSheet() ... choose Home Assistant entities (single or multi)
+   Everything is wired through data-s="action" data-a="argument".
+   ===================================================================== */
+const HA=[];
+(function(){
+  const g=(cls,list)=>list.forEach((l)=>HA.push({id:l[0],name:l[1],dom:l[0].split('.')[0],cls:cls}));
+  g('light',[['light.living_ceiling','Living room ceiling'],['light.living_floor_lamp','Living room floor lamp'],['light.living_shelf','Living room shelf lights'],['light.kitchen_worktop','Kitchen worktop'],['light.kitchen_island','Kitchen island pendants'],['light.bedroom_bedside','Bedroom bedside lamps'],['light.bedroom_ceiling','Bedroom ceiling'],['light.office_desk','Office desk lamp'],['light.office_ceiling','Office ceiling'],['light.hallway_light','Hallway light'],['light.porch_light','Porch light'],['light.landing_light','Landing light'],['light.garden_lights','Garden lights'],['light.understairs_strip','Under-stairs strip'],['light.bathroom_mirror','Bathroom mirror']]);
+  g('speaker',[['media_player.kitchen_speaker','Kitchen speaker'],['media_player.living_room_speaker','Living room speaker'],['media_player.bedroom_speaker','Bedroom speaker'],['media_player.office_speaker','Office speaker'],['media_player.hallway_speaker','Hallway speaker'],['media_player.bathroom_speaker','Bathroom speaker']]);
+  g('tv',[['media_player.living_room_tv','Living room TV']]);
+  g('temperature',['living_room','kitchen','bedroom','office','hallway','bathroom'].map((r)=>['sensor.'+r+'_temperature',r.replace('_',' ').replace(/^./,(c)=>c.toUpperCase())+' temperature']));
+  g('humidity',['living_room','kitchen','bedroom','office','hallway','bathroom'].map((r)=>['sensor.'+r+'_humidity',r.replace('_',' ').replace(/^./,(c)=>c.toUpperCase())+' humidity']));
+  g('motion',['living_room','kitchen','bedroom','office','hallway','garden'].map((r)=>['binary_sensor.'+r+'_motion',r.replace('_',' ').replace(/^./,(c)=>c.toUpperCase())+' motion']));
+  g('scene',[['scene.good_morning','Good morning'],['scene.dinner','Dinner'],['scene.relax','Relax'],['scene.movie_time','Movie time'],['scene.goodnight','Goodnight'],['script.all_off','All off'],['scene.party_time','Party time'],['scene.cleaning','Cleaning'],['script.bedtime_routine','Bedtime routine']]);
+})();
+const HA_TOTAL=214,MAX_SCENES=6;
+const LIGHT_ICONS=['l-bulb','l-ceiling','l-floor','l-desk','l-wall','l-wallup'],SCENE_ICONS=['sun','dinner','relax','movie','moon','power','sparkles','music'];
+const SECS=[['overview','Overview','grid'],['rooms','Rooms','door'],['lights','Lights','bulb'],['media','Media','music'],['scenes','Scenes','sparkles'],['display','Display','monitor']];
+const entOf=(id)=>HA.find((e)=>e.id===id);
+const entName=(id)=>{const e=entOf(id);return e?e.name:(id||'');};
+const roomName=(id)=>{const r=ROOMS.find((x)=>x.id===id);return r?r.name:'';};
+function entState(e){
+  const h=Array.from(e.id).reduce((a,c)=>a+c.charCodeAt(0),0);
+  if(e.cls==='temperature') return (18+h%40/10).toFixed(1)+' °C';
+  if(e.cls==='humidity') return (42+h%14)+' %';
+  if(e.cls==='motion') return 'Clear';
+  if(e.dom==='light'){const d=S.devices.find((x)=>x.ent===e.id);return d&&d.on?'On':'Off';}
+  if(e.cls==='speaker'||e.cls==='tv') return 'Idle';
+  return e.dom==='script'?'Script':'Scene';
+}
+function usedMap(){
+  const u={};
+  S.devices.forEach((d)=>{if(d.ent) u[d.ent]=d.type==='tv'?'TV':'Lights';});
+  S.media.zones.forEach((z)=>{if(z.ent) u[z.ent]='Speakers';});
+  S.scn.forEach((s)=>{if(s.ent) u[s.ent]='Scenes';});
+  Object.keys(S.map).forEach((r)=>['temp','hum','motion'].forEach((k)=>{if(S.map[r][k]) u[S.map[r][k]]='Rooms';}));
+  return u;
+}
+function unusedList(){const u=usedMap();return HA.filter((e)=>!u[e.id]&&(e.dom==='light'||e.cls==='speaker'||e.dom==='scene'||e.dom==='script'));}
+function guessRoom(name){const l=name.toLowerCase();const r=ROOMS.find((x)=>l.indexOf(x.short.toLowerCase())>=0||l.indexOf(x.name.toLowerCase())>=0);return r?r.id:null;}
+function cleanName(name,room){
+  const r=ROOMS.find((x)=>x.id===room);if(!r) return name;
+  const n=name.replace(new RegExp('^'+r.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s+','i'),'');
+  return n.charAt(0).toUpperCase()+n.slice(1);
+}
+function guessIcon(name){
+  const l=name.toLowerCase();
+  if(/ceiling|pendant|island/.test(l)) return 'l-ceiling';
+  if(/lamp|floor/.test(l)) return 'l-floor';
+  if(/desk|bedside/.test(l)) return 'l-desk';
+  if(/shelf|strip|cabinet|under/.test(l)) return 'l-wallup';
+  if(/wall|porch|garden|mirror/.test(l)) return 'l-wall';
+  return 'l-bulb';
+}
+const freeRooms=(except)=>ROOMS.filter((r)=>r.id===except||!S.media.zones.some((z)=>z.id===r.id));
+function lightPreset(ent){
+  const e=entOf(ent),room=guessRoom(e.name)||(S.set&&S.set.filter!=='all'?S.set.filter:null)||ROOMS[0].id;
+  return {ent:ent,room:room,name:cleanName(e.name,room),icon:guessIcon(e.name)};
+}
+function speakerPreset(ent){
+  const e=entOf(ent),fr=freeRooms();if(!fr.length) return null;
+  const g=guessRoom(e.name),room=fr.some((r)=>r.id===g)?g:fr[0].id;
+  return {ent:ent,room:room,name:e.name.replace(/\s+speaker$/i,'')};
+}
+function applyDisp(){
+  const d=S.disp,r=document.documentElement;
+  if(d.theme==='auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme',d.theme);
+  $('#stage').style.filter=d.bright<100?'brightness('+(d.bright/100).toFixed(2)+')':'';
+}
+
+/* ---------- kit: page pieces ---------- */
+const sHead=(t,sub,act)=>'<header class="s-head"><div class="grow"><h2>'+t+'</h2>'+(sub?'<p>'+sub+'</p>':'')+'</div>'+(act||'')+'</header>';
+const sBtn=(label,icon,attr,primary,dis)=>'<button class="btn'+(primary?' primary':'')+'" '+attr+(dis?' disabled':'')+'>'+(icon?ic(icon):'')+label+'</button>';
+const sCard=(label,body,style)=>'<section class="card s-card"'+(style?' style="'+style+'"':'')+'>'+(label?'<div class="s-lab">'+label+'</div>':'')+body+'</section>';
+function sRow(o){
+  const main=(o.icon?'<span class="s-ico">'+ic(o.icon)+'</span>':'')+'<span class="s-txt"><b>'+o.title+'</b>'+(o.sub?'<span'+(o.mono?' class="mono"':'')+'>'+o.sub+'</span>':'')+'</span>'+(o.right||'')+(o.attr&&!o.noChev?'<span class="s-chev">'+ic('chev')+'</span>':'');
+  return '<div class="s-row'+(o.dim?' dim':'')+'">'+(o.attr?'<button class="s-main" '+o.attr+'>'+main+'</button>':'<div class="s-main">'+main+'</div>')+(o.ctrl||'')+'</div>';
+}
+const sVal=(t)=>'<span class="s-val">'+t+'</span>';
+const sSwitch=(on,attr,label)=>'<button class="swb" role="switch" aria-checked="'+on+'" aria-label="'+esc(label)+'" '+attr+'>'+sw(on)+'</button>';
+const sSeg=(opts,cur,act)=>'<div class="seg s-seg" role="group">'+opts.map((o)=>'<button class="'+(String(o[0])===String(cur)?'cur':'')+'" aria-pressed="'+(String(o[0])===String(cur))+'" data-s="'+act+'" data-a="'+o[0]+'">'+o[1]+'</button>').join('')+'</div>';
+const sSet=(title,sub,ctl)=>'<div class="s-set"><div class="s-txt"><b>'+title+'</b>'+(sub?'<span>'+sub+'</span>':'')+'</div>'+ctl+'</div>';
+const sEmpty=(icon,msg)=>'<div class="bigmsg">'+ic(icon)+'<p>'+msg+'</p></div>';
+
+/* ---------- kit: sheets (edit + pick) ---------- */
+function sSheet(title,body,foot,close,cls){
+  return '<div class="s-scrim'+(cls?' '+cls:'')+'" data-s="'+close+'"></div><div class="s-sheet card'+(cls?' '+cls:'')+'" role="dialog" aria-label="'+esc(title)+'"><header class="s-sh-head"><h3>'+esc(title)+'</h3><button class="round" data-s="'+close+'" aria-label="Close">'+ic('x')+'</button></header><div class="s-sh-body">'+body+'</div><footer class="s-sh-foot">'+foot+'</footer></div>';
+}
+const fLab=(t)=>'<div class="s-flab">'+t+'</div>';
+const fText=(f,label,val,ph)=>'<div class="s-field">'+fLab(label)+'<input class="s-in" id="f-'+f+'" data-field="'+f+'" type="text" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'" autocomplete="off" maxlength="28"></div>';
+const fChips=(f,label,opts,cur)=>'<div class="s-field">'+fLab(label)+'<div class="s-chipset">'+opts.map((o)=>'<button class="s-chip'+(o[0]===cur?' cur':'')+'" data-s="fset" data-a="'+f+':'+o[0]+'"'+(o[2]?' disabled':'')+'>'+esc(o[1])+'</button>').join('')+'</div></div>';
+const fIcons=(f,label,icons,cur)=>'<div class="s-field">'+fLab(label)+'<div class="s-icons">'+icons.map((n)=>'<button class="s-ib'+(n===cur?' cur':'')+'" data-s="fset" data-a="'+f+':'+n+'" aria-label="'+n.replace('l-','')+'" aria-pressed="'+(n===cur)+'">'+ic(n)+'</button>').join('')+'</div></div>';
+const fToggle=(f,label,sub,on)=>'<div class="s-field">'+sRow({title:label,sub:sub,ctrl:sSwitch(on,'data-s="ftoggle" data-a="'+f+'"',label)})+'</div>';
+function fEntity(f,label,val,dom,cls,title,clearable){
+  return '<div class="s-field">'+fLab(label)+'<div class="s-entrow"><button class="s-ent" data-s="pickent" data-a="'+f+'|'+dom+'|'+cls+'|'+title+'"><span class="s-txt"><b>'+(val?esc(entName(val)):'Choose an entity')+'</b><span class="mono">'+(val?esc(val):'Not set')+'</span></span>'+ic('chev')+'</button>'+(clearable&&val?'<button class="round" data-s="fclear" data-a="'+f+'" aria-label="Clear">'+ic('x')+'</button>':'')+'</div></div>';
+}
+
+/* ---------- editing ---------- */
+function openEdit(kind,id,preset){
+  let dr;
+  if(kind==='light'){const d=id&&dev(id);dr=d?{name:d.name,room:d.room,icon:d.icon,ent:d.ent}:Object.assign({name:'',room:ROOMS[0].id,icon:'l-bulb',ent:''},preset);}
+  if(kind==='speaker'){const z=id&&S.media.zones.find((x)=>x.id===id);dr=z?{name:z.name,room:z.id,ent:z.ent}:Object.assign({name:'',room:(freeRooms()[0]||{}).id,ent:''},preset);}
+  if(kind==='scene'){const s=id&&S.scn.find((x)=>x.id===id);dr=s?{name:s.name,icon:s.icon,ent:s.ent,show:s.show}:Object.assign({name:'',icon:'sparkles',ent:'',show:true},preset);}
+  if(kind==='room'){const r=id&&ROOMS.find((x)=>x.id===id),m=(id&&S.map[id])||{};dr=r?{name:r.name,temp:m.temp||'',hum:m.hum||'',motion:m.motion||''}:{name:'',temp:'',hum:'',motion:''};}
+  S.edit={kind:kind,id:id||null,isNew:!id,draft:dr};
+}
+function roomRemovable(id){return !S.devices.some((d)=>d.room===id)&&!S.media.zones.some((z)=>z.id===id)&&ROOMS.length>1;}
+function saveEdit(){
+  const e=S.edit,dr=e.draft,name=(dr.name||'').trim(),k=e.kind;
+  if(!name){toast('Give it a name first');return;}
+  if(k==='light'){
+    if(!dr.ent){toast('Choose a Home Assistant entity first');return;}
+    if(e.id) Object.assign(dev(e.id),{name:name,room:dr.room,icon:dr.icon,ent:dr.ent});
+    else S.devices.push({id:'x'+(Date.now()%1e7),type:'light',ent:dr.ent,room:dr.room,name:name,icon:dr.icon,on:false,level:60,warm:60,w:10});
+  }
+  if(k==='speaker'){
+    if(!dr.room){toast('Every room already has a speaker');return;}
+    if(!dr.ent){toast('Choose a Home Assistant entity first');return;}
+    const z=e.id&&S.media.zones.find((x)=>x.id===e.id);
+    if(z){z.id=dr.room;z.name=name;z.ent=dr.ent;} else S.media.zones.push({id:dr.room,name:name,ent:dr.ent,on:false,vol:25});
+  }
+  if(k==='scene'){
+    const s=e.id&&S.scn.find((x)=>x.id===e.id),others=S.scn.filter((x)=>x.show&&x!==s).length;
+    let show=dr.show;if(show&&others>=MAX_SCENES){show=false;toast('Saved, but hidden. The panel shows up to '+MAX_SCENES+' scenes.');}
+    if(s) Object.assign(s,{name:name,icon:dr.icon,ent:dr.ent,show:show});
+    else S.scn.push({id:'c'+(Date.now()%1e7),name:name,icon:dr.icon,ent:dr.ent,show:show,builtin:false,desc:'Runs in Home Assistant.'});
+  }
+  if(k==='room'){
+    const short=name.length>9?name.split(' ')[0]:name;
+    if(e.id){const r=ROOMS.find((x)=>x.id===e.id);r.name=name;r.short=short;S.map[e.id]={temp:dr.temp,hum:dr.hum,motion:dr.motion};}
+    else{const id='r'+(Date.now()%1e7);ROOMS.push({id:id,name:name,short:short});S.map[id]={temp:dr.temp,hum:dr.hum,motion:dr.motion};S.sensors[id]=makeSensors()[id];}
+  }
+  S.edit=null;render();
+}
+function removeEdit(){
+  const e=S.edit,k=e.kind,id=e.id,nm=e.draft.name||'Item';
+  S.edit=null;
+  if(k==='light') return withUndo(nm+' removed from the panel',()=>{S.devices=S.devices.filter((d)=>d.id!==id);});
+  if(k==='speaker') return withUndo(nm+' speaker removed',()=>{S.media.zones=S.media.zones.filter((z)=>z.id!==id);});
+  if(k==='scene'){S.scn=S.scn.filter((s)=>s.id!==id);toast(nm+' removed');return render();}
+  if(k==='room'){
+    ROOMS.splice(ROOMS.findIndex((r)=>r.id===id),1);delete S.map[id];delete S.sensors[id];
+    if(S.room===id) S.room='all';
+    if(S.rroom===id) S.rroom=ROOMS[0].id;
+    toast(nm+' removed');render();
+  }
+}
+
+/* ---------- picking entities ---------- */
+function openPick(o){S.pick=Object.assign({q:'',sel:[],all:false,multi:false,cta:'Use entity',current:''},o);}
+function pickDone(){
+  const p=S.pick,sel=p.sel.slice();if(!sel.length) return;
+  S.pick=null;
+  if(p.kind==='field'){S.edit.draft[p.field]=sel[0];}
+  else if(p.kind==='lights'){
+    sel.forEach((ent)=>{const pre=lightPreset(ent);S.devices.push({id:'x'+(Date.now()%1e7)+Math.floor(Math.random()*99),type:'light',ent:ent,room:pre.room,name:pre.name,icon:pre.icon,on:false,level:60,warm:60,w:10});});
+    S.set.filter='all';toast('Added '+plural(sel.length,'light')+'. Tap one to change its room or name.');
+  }
+  else if(p.kind==='speaker'){const pre=speakerPreset(sel[0]);if(pre) openEdit('speaker',null,pre);}
+  else if(p.kind==='scene'){openEdit('scene',null,{ent:sel[0],name:entName(sel[0]),icon:'sparkles',show:true});}
+  render();
+}
+function addEntity(ent){
+  const e=entOf(ent);
+  if(e.dom==='light') openEdit('light',null,lightPreset(ent));
+  else if(e.cls==='speaker'){const pre=speakerPreset(ent);if(!pre){toast('Every room already has a speaker. Remove one first.');return;}openEdit('speaker',null,pre);}
+  else openEdit('scene',null,{ent:ent,name:e.name,icon:'sparkles',show:true});
+}
+
+/* ---------- sheets html ---------- */
+function editSheet(){
+  const e=S.edit,dr=e.draft,k=e.kind;let body='',removable=!e.isNew,note='';
+  const label={light:'light',speaker:'speaker',scene:'scene',room:'room'}[k];
+  if(k==='light') body=fText('name','Name',dr.name,'For example Reading lamp')+fChips('room','Room',ROOMS.map((r)=>[r.id,r.name]),dr.room)+fIcons('icon','Icon',LIGHT_ICONS,dr.icon)+fEntity('ent','Home Assistant entity',dr.ent,'light','','Choose a light');
+  if(k==='speaker'){
+    body=fText('name','Name',dr.name,'For example Kitchen')+fChips('room','Room',ROOMS.map((r)=>[r.id,r.name,freeRooms(e.id).every((f)=>f.id!==r.id)]),dr.room)+fEntity('ent','Home Assistant entity',dr.ent,'media_player','speaker','Choose a speaker');
+  }
+  if(k==='scene'){
+    const sc=e.id&&S.scn.find((x)=>x.id===e.id);
+    body=fText('name','Name',dr.name,'For example Movie time')+fIcons('icon','Icon',SCENE_ICONS,dr.icon)+fEntity('ent','Home Assistant scene or script',dr.ent,'scene,script','','Choose a scene or script')+fToggle('show','Show on the panel','Up to '+MAX_SCENES+' scenes appear on Home and Scenes.',dr.show);
+    if(sc&&sc.builtin) removable=false;
+  }
+  if(k==='room'){
+    body=fText('name','Name',dr.name,'For example Garden room')+'<div class="s-flab s-sub">Sensors</div>'+fEntity('temp','Temperature',dr.temp,'sensor','temperature','Choose a temperature sensor',true)+fEntity('hum','Humidity',dr.hum,'sensor','humidity','Choose a humidity sensor',true)+fEntity('motion','Motion',dr.motion,'binary_sensor','motion','Choose a motion sensor',true);
+    if(removable&&!roomRemovable(e.id)){removable=false;note='Move or remove its lights, speaker and TV to delete this room.';}
+  }
+  const foot=(removable?'<button class="btn" data-s="edit-remove">'+ic('trash')+'Remove</button>':'')+(note?'<span class="s-note">'+note+'</span>':'')+'<span class="grow"></span><button class="btn" data-s="edit-close">Cancel</button><button class="btn primary" data-s="edit-save">'+(e.isNew?'Add '+label:'Save')+'</button>';
+  return sSheet((e.isNew?'Add ':'Edit ')+label,body,foot,'edit-close');
+}
+function pickSheet(){
+  const p=S.pick,used=usedMap(),doms=p.dom.split(',');
+  const list=HA.filter((e)=>doms.indexOf(e.dom)>=0&&(!p.cls||e.cls===p.cls));
+  const avail=list.filter((e)=>!used[e.id]||e.id===p.current),q=p.q.trim().toLowerCase();
+  const shown=(p.all?list:avail).filter((e)=>!q||(e.name+' '+e.id).toLowerCase().indexOf(q)>=0);
+  const rows=shown.map((e)=>{
+    const on=p.sel.indexOf(e.id)>=0,u=used[e.id]&&e.id!==p.current;
+    return '<div class="s-row s-pr'+(u?' dim':'')+'"><button class="s-main" data-s="row" data-a="'+e.id+'"'+(u?' disabled':'')+' aria-pressed="'+on+'"><span class="s-chk'+(on?' on':'')+'">'+(on?ic('check'):'')+'</span><span class="s-txt"><b>'+esc(e.name)+'</b><span class="mono">'+esc(e.id)+'</span></span><span class="s-val">'+(u?'In '+used[e.id]:entState(e))+'</span></button></div>';
+  }).join('');
+  const body='<div class="s-search">'+ic('search')+'<input class="s-in" id="pq" data-field="__q" type="text" value="'+esc(p.q)+'" placeholder="Search by name or entity id" autocomplete="off"></div>'+
+    '<div style="margin:12px 0">'+sSeg([['avail','Available ('+avail.length+')'],['all','All ('+list.length+')']],p.all?'all':'avail','pickfilter')+'</div>'+
+    '<div class="s-plist">'+(rows||sEmpty('inbox',avail.length?'Nothing matches that search.':'Everything of this type is already in use.'))+'</div>';
+  const n=p.sel.length,cta=p.multi?(n?p.cta+' '+n:p.cta):p.cta;
+  const foot='<span class="grow s-note">'+(p.multi&&n?plural(n,'entity').replace('entitys','entities')+' selected':'')+'</span><button class="btn" data-s="pick-close">Cancel</button><button class="btn primary" data-s="pick-ok"'+(n?'':' disabled')+'>'+cta+'</button>';
+  return sSheet(p.title,body,foot,'pick-close','pick');
+}
+
+/* ---------- sections ---------- */
+function agoSync(){const m=Math.floor((Date.now()-S.syncAt)/60000);return m<1?'just now':m+' min ago';}
+function secOverview(){
+  const un=unusedList(),nSp=S.media.zones.length;
+  const conn=sCard('Home Assistant','<div class="s-status"><i class="s-dot"></i><b>Connected</b><span class="muted">Synced '+agoSync()+'</span></div>'+
+    sRow({icon:'wifi',title:'Address',sub:'homeassistant.local:8123',mono:true})+
+    sRow({icon:'grid',title:'Entities',sub:'Found in Home Assistant',right:sVal(HA_TOTAL)}));
+  const sum=sCard('On this panel',
+    sRow({icon:'door',title:'Rooms',right:sVal(ROOMS.length),attr:'data-s="sec" data-a="rooms"'})+
+    sRow({icon:'bulb',title:'Lights',right:sVal(lights().length),attr:'data-s="sec" data-a="lights"'})+
+    sRow({icon:'speaker',title:'Speakers',right:sVal(nSp),attr:'data-s="sec" data-a="media"'})+
+    sRow({icon:'sparkles',title:'Scenes',right:sVal(visScenes().length+' shown'),attr:'data-s="sec" data-a="scenes"'}),'flex:1');
+  const rows=un.map((e)=>sRow({icon:e.dom==='light'?'bulb':e.cls==='speaker'?'speaker':'sparkles',title:esc(e.name),sub:esc(e.id),mono:true,ctrl:'<button class="btn s-small" data-s="addent" data-a="'+e.id+'">'+ic('plus')+'Add</button>'})).join('');
+  const inbox=sCard('Not used yet · '+un.length,'<div class="s-list">'+(rows||sEmpty('check','Everything from Home Assistant is on the panel.'))+'</div>','flex:1');
+  return sHead('Overview','What the panel is connected to and what is set up.',sBtn('Sync now','sync','data-s="sync"'))+
+    '<div class="s-body s-two"><div class="s-colstack">'+conn+sum+'</div>'+inbox+'</div>';
+}
+function secRooms(){
+  const tiles=ROOMS.map((r)=>{
+    const m=S.map[r.id]||{},ns=['temp','hum','motion'].filter((k)=>m[k]).length,z=S.media.zones.find((x)=>x.id===r.id),nl=roomLights(r.id).length;
+    return '<button class="card s-rc" data-s="edit" data-a="room:'+r.id+'"><b>'+esc(r.name)+'</b><span class="s-mini">'+ic('bulb')+plural(nl,'light')+'</span><span class="s-mini">'+ic('speaker')+(z?esc(z.name):'No speaker')+'</span><span class="s-mini">'+ic('temp')+(ns?plural(ns,'sensor'):'No sensors')+'</span></button>';
+  }).join('')+'<button class="card s-rc s-addtile" data-s="new" data-a="room">'+ic('plus')+'<b>Add room</b></button>';
+  return sHead('Rooms','Name your rooms and choose their sensors.')+'<div class="s-body"><div class="cards s-rooms scroll">'+tiles+'</div></div>';
+}
+function secLights(){
+  const f=S.set.filter,list=f==='all'?lights():roomLights(f);
+  const rows=list.map((d)=>sRow({icon:d.icon,title:esc(d.name),sub:esc(d.ent||'No entity'),mono:true,right:sVal(esc(roomName(d.room))),attr:'data-s="edit" data-a="light:'+d.id+'"'})).join('');
+  return sHead('Lights',plural(lights().length,'light')+' across '+plural(ROOMS.length,'room')+'.',sBtn('Add lights','plus','data-s="new" data-a="lights"',true))+
+    '<div class="s-body">'+sSeg([['all','All']].concat(ROOMS.map((r)=>[r.id,esc(r.short)])),f,'filter')+
+    sCard('', '<div class="s-list">'+(rows||sEmpty('bulb','No lights here yet. Use Add lights.'))+'</div>','flex:1')+'</div>';
+}
+function secMedia(){
+  const sp=S.media.zones.map((z)=>sRow({icon:'speaker',title:esc(z.name),sub:esc(z.ent||'No entity'),mono:true,right:sVal(esc(roomName(z.id))),attr:'data-s="edit" data-a="speaker:'+z.id+'"'})).join('');
+  const canAdd=freeRooms().length>0;
+  const st=STATIONS.map((s,k)=>sRow({icon:'radio',title:'BBC '+esc(s.n),sub:esc(s.d),ctrl:sSwitch(s.show!==false,'data-s="stn" data-a="'+k+'"','Show BBC '+s.n)})).join('');
+  return sHead('Media','Choose the speakers and radio stations on the panel.',sBtn('Add speaker','plus','data-s="new" data-a="speaker"',true,!canAdd))+
+    '<div class="s-body s-two" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">'+
+    sCard('Speakers · '+S.media.zones.length,'<div class="s-list">'+(sp||sEmpty('speaker','No speakers yet.'))+'</div>','flex:1')+
+    sCard('Radio stations','<div class="s-list">'+st+'</div>','flex:1')+'</div>';
+}
+function secScenes(){
+  const n=visScenes().length;
+  const rows=S.scn.map((s)=>sRow({icon:s.icon,title:esc(s.name),sub:esc(s.ent||'Panel only'),mono:true,attr:'data-s="edit" data-a="scene:'+s.id+'"',noChev:false,ctrl:sSwitch(s.show,'data-s="scnshow" data-a="'+s.id+'"','Show '+s.name)})).join('');
+  return sHead('Scenes',n+' of '+MAX_SCENES+' shown on the panel.',sBtn('Add scene','plus','data-s="new" data-a="scene"',true))+
+    '<div class="s-body">'+sCard('', '<div class="s-list">'+rows+'</div>','flex:1')+'</div>';
+}
+function secDisplay(){
+  const d=S.disp;
+  const a=sCard('Appearance',sSet('Theme','Auto follows the device.',sSeg([['auto','Auto'],['light','Light'],['dark','Dark']],d.theme,'theme'))+sSet('Clock',null,sSeg([['24','24-hour'],['12','12-hour']],d.h12?'12':'24','clock')),'');
+  const b=sCard('Screen',sSet('Brightness',d.bright+'%',rng('bright','v','Brightness',40,100,1,d.bright,'var(--ink)'))+sSet('Sleep after','Shows the clock when nobody touches the panel.',sSeg([[60,'1 min'],[120,'2 min'],[300,'5 min'],[600,'10 min'],[0,'Never']],d.sleep,'sleep')),'');
+  const c=sCard('About',sRow({icon:'home',title:'Wall panel',sub:'Version 1.0 · Home Assistant connected'}));
+  return sHead('Display','How the panel looks and when it sleeps.',sBtn('Reset all settings','reset','data-s="reset"'))+'<div class="s-body s-two" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">'+a+'<div class="s-colstack">'+b+c+'</div></div>';
+}
+function railHtml(){
+  const un=unusedList().length,cnt={overview:un?un+' new':'',rooms:ROOMS.length,lights:lights().length,media:S.media.zones.length,scenes:visScenes().length,display:''};
+  return '<aside class="rail card" aria-label="Settings sections"><button class="rail-item s-back" data-s="close"><span class="row">'+ic('back')+'Back</span></button><div class="rail-gap"></div>'+
+    SECS.map((s)=>'<button class="rail-item'+(S.set.sec===s[0]?' cur':'')+'" data-s="sec" data-a="'+s[0]+'"><span class="row">'+ic(s[2])+s[1]+'</span><small>'+cnt[s[0]]+'</small></button>').join('')+'</aside>';
+}
+function settingsHtml(){
+  const sec=S.set.sec,fn={overview:secOverview,rooms:secRooms,lights:secLights,media:secMedia,scenes:secScenes,display:secDisplay}[sec];
+  return railHtml()+'<div class="s-main-col">'+fn()+'</div>'+(S.edit?editSheet():'')+(S.pick?pickSheet():'');
+}
+function renderSettings(){
+  const el=$('#settings'),open=!!S.set;
+  el.classList.toggle('open',open);$('#stage').classList.toggle('in-set',open);
+  paint(el,open?settingsHtml():'');
+}
+
+/* ---------- actions ---------- */
+function sAct(act,a){
+  switch(act){
+    case 'open':S.set={sec:'overview',filter:'all'};break;
+    case 'close':S.set=null;S.edit=null;S.pick=null;break;
+    case 'sec':S.set.sec=a;S.set.filter='all';break;
+    case 'filter':S.set.filter=a;break;
+    case 'edit':{const p=a.split(':');openEdit(p[0],p[1]);break;}
+    case 'new':
+      if(a==='lights') openPick({kind:'lights',title:'Add lights',dom:'light',cls:'',multi:true,cta:'Add'});
+      else if(a==='speaker'){if(!freeRooms().length){toast('Every room already has a speaker.');return;}openPick({kind:'speaker',title:'Choose a speaker',dom:'media_player',cls:'speaker'});}
+      else if(a==='scene') openPick({kind:'scene',title:'Choose a scene or script',dom:'scene,script',cls:'',cta:'Continue'});
+      else if(a==='room') openEdit('room',null);
+      break;
+    case 'addent':addEntity(a);break;
+    case 'edit-close':S.edit=null;break;
+    case 'edit-save':return saveEdit();
+    case 'edit-remove':return removeEdit();
+    case 'fset':{const i=a.indexOf(':');S.edit.draft[a.slice(0,i)]=a.slice(i+1);break;}
+    case 'ftoggle':S.edit.draft[a]=!S.edit.draft[a];break;
+    case 'fclear':S.edit.draft[a]='';break;
+    case 'pickent':{const p=a.split('|');openPick({kind:'field',field:p[0],dom:p[1],cls:p[2],title:p[3],current:S.edit.draft[p[0]]||'',sel:S.edit.draft[p[0]]?[S.edit.draft[p[0]]]:[],all:false});break;}
+    case 'pick-close':S.pick=null;break;
+    case 'pick-ok':return pickDone();
+    case 'pickfilter':S.pick.all=a==='all';break;
+    case 'row':{const p=S.pick,i=p.sel.indexOf(a);if(p.multi){if(i>=0)p.sel.splice(i,1);else p.sel.push(a);}else p.sel=i>=0?[]:[a];break;}
+    case 'sync':S.syncAt=Date.now();toast('Synced '+HA_TOTAL+' entities from Home Assistant');break;
+    case 'stn':{const s=STATIONS[+a];s.show=s.show===false;break;}
+    case 'scnshow':{const s=S.scn.find((x)=>x.id===a);if(!s.show&&visScenes().length>=MAX_SCENES){toast('The panel shows up to '+MAX_SCENES+' scenes. Hide one first.');return;}s.show=!s.show;break;}
+    case 'theme':S.disp.theme=a;applyDisp();break;
+    case 'clock':S.disp.h12=a==='12';break;
+    case 'sleep':S.disp.sleep=+a;break;
+    case 'reset':{const keep=S.tab;S=seed();S.tab=keep;S.set={sec:'display',filter:'all'};applyDisp();toast('Settings reset');break;}
+  }
+  render();
+}
+document.addEventListener('click',(e)=>{
+  const t=e.target.closest('[data-s]');if(!t||t.disabled) return;
+  sAct(t.dataset.s,t.dataset.a);
+});
+document.addEventListener('input',(e)=>{
+  const f=e.target.closest&&e.target.closest('[data-field]');if(!f) return;
+  if(f.dataset.field==='__q'){S.pick.q=f.value;render();}
+  else if(S.edit) S.edit.draft[f.dataset.field]=f.value;
+});
+document.addEventListener('keydown',(e)=>{
+  if(!S.set) return;
+  if(e.key==='Escape'){if(S.pick) S.pick=null; else if(S.edit) S.edit=null; else S.set=null;render();}
+  if(e.key==='Enter'&&S.edit&&!S.pick&&e.target.closest&&e.target.closest('.s-in')) saveEdit();
+});
+
+/* ---------- state changes ---------- */
+let undoFn=null,toastT=null;
+function toast(msg,undo){
+  const t=$('#toast');undoFn=undo||null;
+  t.innerHTML='<span>'+esc(msg)+'</span>'+(undo?'<button data-act="undo">'+ic('undo')+'Undo</button>':'');
+  t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),6000);
+}
+function withUndo(msg,fn){
+  const snap=JSON.stringify({d:S.devices,m:S.media}),prev=S.lastScene;
+  fn();
+  toast(msg,()=>{const o=JSON.parse(snap);S.devices=o.d;S.media=o.m;S.lastScene=prev;render();});
+  render();
+}
+const set=(id,p)=>Object.assign(dev(id),p);
+const allOff=()=>lights().forEach((d)=>{d.on=false;});
+const zone=(id,p)=>Object.assign(S.media.zones.find((z)=>z.id===id),p);
+function runScene(id){
+  const sc=S.scn.find((s)=>s.id===id);
+  if(!sc.builtin) return withUndo(sc.name+' is on',()=>{S.lastScene=id;});
+  withUndo(sc.name+' is on',()=>{
+    allOff();
+    if(id==='morning'){set('worktop',{on:true,level:100,warm:30});set('pend',{on:true,level:70,warm:50});set('hall',{on:true,level:50,warm:60});zone('kitchen',{on:true,vol:30});S.media.source='radio';S.media.st=1;S.media.playing=true;}
+    if(id==='dinner'){set('pend',{on:true,level:80,warm:80});set('worktop',{on:true,level:60,warm:70});set('lamp',{on:true,level:30,warm:95});set('shelf',{on:true,level:35,warm:95});zone('kitchen',{on:true,vol:20});zone('living',{on:true,vol:20});S.media.source='lib';S.media.i=2;S.media.pos=0;S.media.playing=true;}
+    if(id==='relax'){set('lamp',{on:true,level:40,warm:95});set('shelf',{on:true,level:35,warm:95});set('tv',{on:false});}
+    if(id==='movie'){set('lamp',{on:true,level:20,warm:95});set('tv',{on:true});S.media.playing=false;}
+    if(id==='night'){set('bedside',{on:true,level:15,warm:95});set('tv',{on:false});S.media.playing=false;}
+    if(id==='off'){set('tv',{on:false});S.media.playing=false;}
+    S.lastScene=id;
+  });
+}
+function toggleDevice(id){const d=dev(id);d.on=!d.on;render();}
+function scope(){return S.room==='all'?lights():roomLights(S.room);}
+const PRESETS={bright:{level:100,warm:35,label:'Bright'},relax:{level:40,warm:90,label:'Relax'},night:{level:10,warm:100,label:'Night'}};
+function applyPreset(k){
+  const p=PRESETS[k],name=S.room==='all'?'All lights':ROOMS.find((r)=>r.id===S.room).name;
+  withUndo(p.label+' in '+name.toLowerCase(),()=>{scope().forEach((d)=>{d.on=true;d.level=p.level;d.warm=p.warm;});});
+}
+function roomToggle(id){
+  const ls=roomLights(id),any=ls.some((l)=>l.on),r=ROOMS.find((x)=>x.id===id);
+  withUndo(r.name+' lights '+(any?'off':'on'),()=>{ls.forEach((l)=>{l.on=!any;});});
+}
+
+/* ---------- media ---------- */
+function ensureZone(){if(!S.media.zones.some((z)=>z.on)) zone('kitchen',{on:true});}
+function play(){const m=S.media;if(!m.playing) ensureZone();m.playing=!m.playing;render();}
+function pick(dir,auto){
+  const m=S.media;
+  if(auto&&m.repeat){m.pos=0;return;}
+  if(m.shuffle&&dir>0){let n=m.i;while(n===m.i) n=Math.floor(Math.random()*TRACKS.length);m.i=n;}
+  else m.i=(m.i+dir+TRACKS.length)%TRACKS.length;
+  m.pos=0;
+}
+function skip(dir){const m=S.media;if(m.source==='radio') m.st=(m.st+dir+STATIONS.length)%STATIONS.length;else pick(dir,false);render();}
+function playStation(k){const m=S.media;m.source='radio';m.st=k;m.playing=true;ensureZone();render();}
+function playTrack(i){const m=S.media;m.source='lib';m.i=i;m.pos=0;m.playing=true;ensureZone();render();}
+function groupAll(){const m=S.media;m.zones.forEach((z)=>{z.on=true;});if(!m.playing){m.playing=true;}toast('Playing in every room');render();}
+
+/* ---------- navigation ---------- */
+const view=$('#view'),stage=$('#stage');
+let scale=1;
+const tabIndex=(id)=>TABS.findIndex((t)=>t.id===id);
+function setTab(id,picker){
+  if(id===S.tab) return;
+  const dir=tabIndex(id)-tabIndex(S.tab);
+  S.tab=id;S.picker=!!picker;
+  view.classList.remove('slide-l','slide-r');void view.offsetWidth;view.classList.add(dir>0?'slide-l':'slide-r');
+  render();
+}
+function moveTab(dir){const i=tabIndex(S.tab)+dir;if(i>=0&&i<TABS.length) setTab(TABS[i].id);}
+function fit(){const f=$('#fit');scale=Math.min(f.clientWidth/1280,f.clientHeight/800)||1;stage.style.setProperty('--s',scale);}
+const mq=window.matchMedia('(prefers-color-scheme: dark)');
+function theme(){const cur=document.documentElement.getAttribute('data-theme')||(mq.matches?'dark':'light');document.documentElement.setAttribute('data-theme',cur==='dark'?'light':'dark');S.disp.theme=cur==='dark'?'light':'dark';}
+
+function render(){
+  paint(view,VIEWS[S.tab]());
+  paint($('#dock'),dockHtml());paint($('#picker'),pickerHtml());
+  renderSettings();
+}
+
+/* ---------- sleep mode ---------- */
+let lastTouch=Date.now(),driftT=0;
+function ambientFill(){
+  const d=new Date(),on=lights().filter((x)=>x.on).length,pr=playingRooms();
+  $('#amb-t').textContent=hhmm(d.getTime());
+  $('#amb-d').textContent=d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+  $('#amb-a').innerHTML='<span>'+(on?plural(on,'light')+' on':'Lights off')+'</span>'+(pr.length?'<span>Playing in '+esc(pr[0].name)+(pr.length>1?' and more':'')+'</span>':'');
+}
+function showAmbient(){ambientFill();$('#ambient').classList.add('show');}
+function wake(){lastTouch=Date.now();}
+
+/* ---------- swipe between tabs ---------- */
+let swipe=null,justSwiped=false;
+document.addEventListener('pointerdown',(e)=>{
+  if($('#ambient').classList.contains('show')){e.stopPropagation();e.preventDefault();$('#ambient').classList.remove('show');wake();return;}
+  wake();
+  if(e.target.closest('input,.dock,.picker,#settings')||!e.target.closest('#stage')) return;
+  swipe={x:e.clientX,y:e.clientY,t:Date.now(),id:e.pointerId,drag:false,dx:0};
+},true);
+document.addEventListener('pointermove',(e)=>{
+  if(!swipe||e.pointerId!==swipe.id) return;
+  const dx=(e.clientX-swipe.x)/scale,dy=(e.clientY-swipe.y)/scale;
+  if(!swipe.drag){
+    if(Math.abs(dx)>16&&Math.abs(dx)>Math.abs(dy)*1.4){swipe.drag=true;view.style.transition='none';}
+    else return;
+  }
+  swipe.dx=dx;
+  const i=tabIndex(S.tab),edge=(dx>0&&i===0)||(dx<0&&i===TABS.length-1),f=edge?0.12:0.4;
+  view.style.transform='translateX('+(dx*f).toFixed(1)+'px)';
+  view.style.opacity=String(1-Math.min(Math.abs(dx)*f/300,0.4));
+});
+function endSwipe(e){
+  if(!swipe||e.pointerId!==swipe.id) return;
+  const s=swipe;swipe=null;
+  if(!s.drag) return;
+  view.style.transition='transform .25s,opacity .25s';view.style.transform='';view.style.opacity='';
+  setTimeout(()=>{view.style.transition='';},280);
+  justSwiped=true;setTimeout(()=>{justSwiped=false;},60);
+  const dt=Math.max(1,Date.now()-s.t),commit=Math.abs(s.dx)>120||(Math.abs(s.dx)/dt>0.5&&Math.abs(s.dx)>45);
+  if(commit) moveTab(s.dx<0?1:-1);
+}
+document.addEventListener('pointerup',endSwipe);
+document.addEventListener('pointercancel',endSwipe);
+
+/* ---------- taps ---------- */
+document.addEventListener('click',(e)=>{
+  if(justSwiped) return;
+  const t=e.target.closest('[data-toggle],[data-tab],[data-scene],[data-room],[data-skip],[data-play],[data-alloff],[data-roomall],[data-roomtoggle],[data-preset],[data-warm],[data-zone],[data-shuffle],[data-repeat],[data-track],[data-station],[data-playlist],[data-mtab],[data-groupall],[data-rroom],[data-roomoff],[data-act]');
+  if(!t) return;
+  const D=t.dataset;
+  if(D.toggle) return toggleDevice(D.toggle);
+  if(D.tab){if(D.tab==='rooms'&&S.tab==='rooms'){S.picker=!S.picker;return render();}return setTab(D.tab,D.tab==='rooms');}
+  if(D.rroom){S.rroom=D.rroom;S.picker=false;return render();}
+  if(D.roomoff){const rr=ROOMS.find((x)=>x.id===D.roomoff);return withUndo(rr.name+' is off',()=>{roomLights(rr.id).forEach((l)=>{l.on=false;});if(rr.id==='living') dev('tv').on=false;});}
+  if(D.scene) return runScene(D.scene);
+  if(D.room){S.room=D.room;return render();}
+  if(D.skip) return skip(+D.skip);
+  if(D.play) return play();
+  if(D.alloff) return withUndo('All lights are off',()=>{allOff();});
+  if(D.roomall) return withUndo((S.room==='all'?'All lights':ROOMS.find((r)=>r.id===S.room).name+' lights')+' off',()=>{scope().forEach((d)=>{d.on=false;});});
+  if(D.roomtoggle) return roomToggle(D.roomtoggle);
+  if(D.preset) return applyPreset(D.preset);
+  if(D.warm){const p=D.warm.split(':'),d=dev(p[0]);d.warm=+p[1];d.on=true;return render();}
+  if(D.zone){const z=S.media.zones.find((x)=>x.id===D.zone);z.on=!z.on;return render();}
+  if(D.shuffle){S.media.shuffle=!S.media.shuffle;return render();}
+  if(D.repeat){S.media.repeat=!S.media.repeat;return render();}
+  if(D.track) return playTrack(+D.track);
+  if(D.station) return playStation(+D.station);
+  if(D.playlist) return playTrack(+D.playlist);
+  if(D.mtab){S.media.mtab=D.mtab;return render();}
+  if(D.groupall) return groupAll();
+  switch(D.act){
+    case 'close-picker':S.picker=false;return render();
+    case 'theme':return theme();
+    case 'undo':if(undoFn){undoFn();undoFn=null;$('#toast').classList.remove('show');}return;
+    case 'demo-sleep':return showAmbient();
+    case 'demo-reset':{S=seed();applyDisp();render();return;}
+  }
+});
+document.addEventListener('input',(e)=>{
+  const r=e.target.closest('[data-range]');if(!r) return;
+  const p=r.dataset.range.split(':'),v=Number(r.value);
+  if(p[0]==='bright'){S.disp.bright=v;applyDisp();}
+  else if(p[0]==='seek') S.media.pos=v;
+  else if(p[0].indexOf('z-')===0){const z=S.media.zones.find((x)=>x.id===p[0].slice(2));z.vol=v;if(v>0) z.on=true;}
+  else{const d=dev(p[0]);d[p[1]]=v;if(d.type==='light') d.on=true;}
+  render();
+});
+document.addEventListener('keydown',(e)=>{
+  wake();
+  if(e.target.closest&&e.target.closest('input')) return;
+  if(S.set) return;
+  if(e.key==='ArrowRight') moveTab(1);
+  if(e.key==='ArrowLeft') moveTab(-1);
+});
+
+/* ---------- live simulation ---------- */
+function tick(){
+  const m=S.media;
+  Object.keys(S.sensors).forEach((k)=>{const sn=S.sensors[k];sn.temp=+clamp(sn.temp+(Math.random()-0.5)*0.03,16,26).toFixed(2);sn.tser[23]=sn.temp;});
+  if(Math.random()<0.06){const sn=S.sensors[ROOMS[Math.floor(Math.random()*ROOMS.length)].id];sn.last=Date.now();sn.hist[11]++;}
+  if(playingRooms().length&&m.source!=='radio'){m.pos+=1.5;if(m.pos>=TRACKS[m.i][2]) pick(1,true);}
+  const amb=$('#ambient').classList.contains('show');
+  if(!amb&&!S.set&&S.disp.sleep&&Date.now()-lastTouch>S.disp.sleep*1000) showAmbient();
+  if(amb){ambientFill();if(Date.now()-driftT>20000){driftT=Date.now();const dr=$('#drift');dr.style.setProperty('--dx',(Math.random()*80-40)+'px');dr.style.setProperty('--dy',(Math.random()*60-30)+'px');}}
+  render();
+}
+fit();
+if(window.ResizeObserver) new ResizeObserver(fit).observe($('#fit')); else window.addEventListener('resize',fit);
+render();
+setInterval(tick,1500);
+})();
+</script>
+
+</body></html>
