@@ -287,6 +287,7 @@ export function play(id?: RoomId): void {
   const z = zoneFor(id);
   if (!z || !z.available) return;
   z.on = !z.on;
+  holdOptimistic(z.ent, "on", z.on);
   bump();
   void callService("media_player", "media_play_pause", {}, { entity_id: z.ent });
 }
@@ -299,6 +300,7 @@ export function toggleZone(id: RoomId): void {
   const z = _S.media.zones.find((x) => x.id === id);
   if (!z || !z.available) return;
   z.on = !z.on;
+  holdOptimistic(z.ent, "on", z.on);
   bump();
   void callService("media_player", z.on ? "media_play" : "media_pause", {}, { entity_id: z.ent });
 }
@@ -452,6 +454,7 @@ export function tvPower(): void {
   const t = watchTv();
   if (!t || !t.available) return;
   t.on = !t.on;
+  holdOptimistic(t.ent, "on", t.on);
   bump();
   void callService("media_player", t.on ? "turn_on" : "turn_off", {}, { entity_id: t.ent });
 }
@@ -557,6 +560,28 @@ export function loadCalendar(force = false): void {
 // ---- HA → state ----
 const num = (v: unknown): number | undefined => (typeof v === "number" ? v : undefined);
 let _lastEntities: Record<string, HassEntity> | null = null;
+
+// Optimistic-action hold. After a local toggle we show the new value at once,
+// but subscribe_entities keeps streaming the OLD state for a beat (HA hasn't
+// acted yet), which flips play/pause (and power) icons back and forth. Hold the
+// optimistic value for an entity+field until HA reports it (or a short timeout),
+// so the control doesn't flicker.
+const PENDING_MS = 5000;
+const _pending = new Map<string, { value: unknown; until: number }>();
+export function holdOptimistic(ent: string, field: string, value: unknown): void {
+  _pending.set(ent + "\u0000" + field, { value, until: Date.now() + PENDING_MS });
+}
+/** True while we should keep the optimistic value instead of HA's `incoming`. */
+function heldOptimistic(ent: string, field: string, incoming: unknown): boolean {
+  const key = ent + "\u0000" + field;
+  const p = _pending.get(key);
+  if (!p) return false;
+  if (Date.now() > p.until || incoming === p.value) {
+    _pending.delete(key);
+    return false;
+  }
+  return true;
+}
 export function applyHa(entities: Record<string, HassEntity>): void {
   _lastEntities = entities;
   for (const d of _S.devices) {
@@ -591,8 +616,14 @@ export function applyHa(entities: Record<string, HassEntity>): void {
       d.rgb = Array.isArray(rgb) && rgb.length === 3 ? [rgb[0], rgb[1], rgb[2]] as [number, number, number] : null;
     } else {
       // TV (media_player, device_class tv) + paired Android TV remote.
-      d.on = e.state !== "off" && e.state !== "standby";
-      d.playing = e.state === "playing";
+      const liveOn = e.state !== "off" && e.state !== "standby";
+      if (!heldOptimistic(d.ent, "on", liveOn)) d.on = liveOn;
+      // Play state is driven optimistically by the transport buttons: the
+      // Android TV Remote reports no reliable play state, so overwriting it from
+      // HA here only flips the play/pause icon back and forth. Leave `d.playing`
+      // to tvPlayPause, but clear it when the TV is off so it doesn't resume
+      // showing "pause".
+      if (!d.on) d.playing = false;
       const vl = num(e.attributes.volume_level);
       if (vl !== undefined) d.vol = Math.round(vl * 100);
       d.muted = e.attributes.is_volume_muted === true;
@@ -628,7 +659,8 @@ export function applyHa(entities: Record<string, HassEntity>): void {
       continue;
     }
     z.name = getHome().names?.[z.ent] ?? roomNameFor(z.id) ?? e.attributes.friendly_name ?? z.name;
-    z.on = e.state === "playing";
+    const zoneOn = e.state === "playing";
+    if (!heldOptimistic(z.ent, "on", zoneOn)) z.on = zoneOn;
     const vl = num(e.attributes.volume_level);
     if (vl !== undefined) z.vol = Math.round(vl * 100);
     z.title = (e.attributes.media_title as string) ?? "";

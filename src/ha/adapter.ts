@@ -64,16 +64,18 @@ export function initHa(conn: HaConnection): () => void {
       const saved = await loadConfig(conn);
       const merged = mergeConfig(imported, saved);
       if (merged) {
-        // Prune entities HA no longer knows about so a device deleted in HA is
-        // gone after a reload (not just after Re-sync). Guarded by a populated
-        // registry so a transient empty read can't wipe the config; skipped when
-        // the registry is unreadable (e.g. a non-admin account) — merged wins.
-        const known = reg ? knownEntityIds(reg) : new Set<string>();
-        const final = known.size > 0 ? pruneMissing(merged.config, known) : { config: merged.config, removed: 0 };
-        applyConfig(final.config);
-        // Persist when we established a fresh baseline or pruned stale entries,
-        // so the cleanup sticks and edits have a base to diff.
-        if ((!saved && imported) || final.removed > 0) void saveConfig(conn, final.config);
+        // Apply the merged config as-is. We deliberately do NOT prune "missing"
+        // entities on the automatic boot path: a device that is merely offline
+        // (a Google TV Streamer powered down, an integration still reloading at
+        // HA startup) is absent from a single registry read, and pruning it here
+        // would wipe a valid assignment — e.g. drop `room.tv` so the Watch tab
+        // vanishes — and then persist + cross-device-sync that deletion to every
+        // panel. Reconciling genuinely-deleted devices is left to the explicit
+        // Settings → Re-sync, where the user is actively reconciling.
+        applyConfig(merged.config);
+        // Persist only to establish a baseline the first time (fresh import, no
+        // saved edits yet), so later edits have something to diff against.
+        if (!saved && imported) void saveConfig(conn, merged.config);
       }
     } catch {
       // Keep the fallback config; still bring the panel up.
