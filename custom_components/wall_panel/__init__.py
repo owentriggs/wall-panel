@@ -34,6 +34,7 @@ from homeassistant.components import panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
@@ -53,8 +54,8 @@ SIDEBAR_ICON = "mdi:tablet-dashboard"
 _MANIFEST = json.loads((Path(__file__).parent / "manifest.json").read_text(encoding="utf-8"))
 VERSION = str(_MANIFEST.get("version", "0"))
 
-# No YAML config keys; presence of `wall_panel:` (or a HACS/UI install) is enough.
-CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
+# No YAML config keys; a bare `wall_panel:` (or a HACS/UI install) is enough.
+CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
 
 async def _async_setup_common(hass: HomeAssistant) -> None:
